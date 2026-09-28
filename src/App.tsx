@@ -82,6 +82,7 @@ const App: React.FC = () => {
   const [moveLog, setMoveLog] = useState<string[]>([]);
   const [moveCount, setMoveCount] = useState(0);
   const autoPlayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startAutoPlayRef = useRef<() => void>(() => {});
 
   // Round result
   const [showRoundResult, setShowRoundResult] = useState(false);
@@ -746,6 +747,11 @@ const App: React.FC = () => {
     console.log('⏱️ Auto-play interval created, ID:', autoPlayRef.current, 'interval:', MOVE_INTERVAL, 'ms');
   }, [whitePawns, whitePieces, blackPawns, blackPieces, selectedCommanderWhite, selectedCommanderBlack, whiteCommanders, blackCommanders]);
 
+  // Keep ref in sync with startAutoPlay
+  useEffect(() => {
+    startAutoPlayRef.current = startAutoPlay;
+  }, [startAutoPlay]);
+
   // Auto-play effect - starts when both commanders are selected
   useEffect(() => {
     console.log('🎯 Auto-play useEffect triggered', { phase, white: selectedCommanderWhite?.name, black: selectedCommanderBlack?.name });
@@ -753,7 +759,7 @@ const App: React.FC = () => {
       console.log('✅ Both commanders selected, starting auto-play in 1.5s');
       const timeout = setTimeout(() => {
         console.log('⏰ Timeout fired, calling startAutoPlay()');
-        startAutoPlay();
+        startAutoPlayRef.current();
       }, 1500);
       
       return () => {
@@ -761,7 +767,7 @@ const App: React.FC = () => {
         clearTimeout(timeout);
       };
     }
-  }, [phase, selectedCommanderWhite, selectedCommanderBlack, startAutoPlay]);
+  }, [phase, selectedCommanderWhite, selectedCommanderBlack]);
 
   const endRound = (chessGame: Chess, history: number[], moves: number) => {
     let winner: Color | 'draw' = 'draw';
