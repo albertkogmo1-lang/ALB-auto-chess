@@ -480,117 +480,41 @@ const App: React.FC = () => {
     console.log('Black pawns:', blackPawns);
     console.log('Black pieces:', blackPieces);
     
-    // Safety check: ensure all pieces are placed
-    const whitePawnCount = Object.keys(whitePawns).length;
-    const whitePieceCount = Object.keys(whitePieces).length;
-    const blackPawnCount = Object.keys(blackPawns).length;
-    const blackPieceCount = Object.keys(blackPieces).length;
-    
-    console.log('Piece counts:', { whitePawnCount, whitePieceCount, blackPawnCount, blackPieceCount });
-    
-    if (whitePawnCount < 8 || whitePieceCount < 8 || blackPawnCount < 8 || blackPieceCount < 8) {
-      console.error('❌ Not all pieces are placed! Aborting auto-play.');
-      console.error('Expected: 8 pawns + 8 pieces per side');
-      console.error('Got: White pawns:', whitePawnCount, 'White pieces:', whitePieceCount);
-      console.error('Got: Black pawns:', blackPawnCount, 'Black pieces:', blackPieceCount);
-      
-      // Try to auto-fill missing pieces
-      if (whitePawnCount < 8) {
-        const remaining = 8 - whitePawnCount;
-        const occupied = new Set(Object.keys(whitePawns));
-        const empty = getPawnDeploymentSquares('w').filter(sq => !occupied.has(sq));
-        const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
-        setWhitePawns(prev => ({ ...prev, ...auto }));
-        console.log('Auto-filled white pawns:', auto);
-      }
-      if (blackPawnCount < 8) {
-        const remaining = 8 - blackPawnCount;
-        const occupied = new Set(Object.keys(blackPawns));
-        const empty = getPawnDeploymentSquares('b').filter(sq => !occupied.has(sq));
-        const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
-        setBlackPawns(prev => ({ ...prev, ...auto }));
-        console.log('Auto-filled black pawns:', auto);
-      }
-      if (whitePieceCount < 8) {
-        const remaining = 8 - whitePieceCount;
-        const occupied = new Set([...Object.keys(whitePawns), ...Object.keys(whitePieces)]);
-        const empty = getPieceDeploymentSquares('w').filter(sq => !occupied.has(sq));
-        const allPieces = getStandardPieceSet();
-        const placed = Object.values(whitePieces) as PieceType[];
-        const remainingPieces = [...allPieces];
-        for (const p of placed) {
-          const idx = remainingPieces.indexOf(p);
-          if (idx !== -1) remainingPieces.splice(idx, 1);
-        }
-        const auto = autoPlaceRandom(remainingPieces.slice(0, remaining), empty);
-        setWhitePieces(prev => ({ ...prev, ...auto }));
-        console.log('Auto-filled white pieces in rows 1-4:', auto);
-      }
-      if (blackPieceCount < 8) {
-        const remaining = 8 - blackPieceCount;
-        const occupied = new Set([...Object.keys(blackPawns), ...Object.keys(blackPieces)]);
-        const empty = getPieceDeploymentSquares('b').filter(sq => !occupied.has(sq));
-        const allPieces = getStandardPieceSet();
-        const placed = Object.values(blackPieces) as PieceType[];
-        const remainingPieces = [...allPieces];
-        for (const p of placed) {
-          const idx = remainingPieces.indexOf(p);
-          if (idx !== -1) remainingPieces.splice(idx, 1);
-        }
-        const auto = autoPlaceRandom(remainingPieces.slice(0, remaining), empty);
-        setBlackPieces(prev => ({ ...prev, ...auto }));
-        console.log('Auto-filled black pieces in rows 5-8:', auto);
-      }
-      
-      // Wait for state to update and retry
-      setTimeout(() => {
-        console.log('Retrying auto-play after auto-fill...');
-        startAutoPlay();
-      }, 100);
-      return;
-    }
-    
-    setPhase('auto-play');
-    
-    // Build the FEN from placement
+    // Auto-fill any missing pieces before starting
     const finalWhitePawns = { ...whitePawns };
     const finalWhitePieces = { ...whitePieces };
     const finalBlackPawns = { ...blackPawns };
     const finalBlackPieces = { ...blackPieces };
-
-    // Debug logging
-    console.log('Starting auto-play with placements:');
-    console.log('White pawns:', Object.keys(finalWhitePawns).length, finalWhitePawns);
-    console.log('White pieces:', Object.keys(finalWhitePieces).length, finalWhitePieces);
-    console.log('Black pawns:', Object.keys(finalBlackPawns).length, finalBlackPawns);
-    console.log('Black pieces:', Object.keys(finalBlackPieces).length, finalBlackPieces);
-
-    // Auto-fill any missing placements
+    
+    // Auto-fill white pawns if needed
     if (Object.keys(finalWhitePawns).length < 8) {
       const remaining = 8 - Object.keys(finalWhitePawns).length;
       const occupied = new Set(Object.keys(finalWhitePawns));
-      const empty = getDeploymentSquares('w').filter(sq => !occupied.has(sq));
+      const empty = getPawnDeploymentSquares('w').filter(sq => !occupied.has(sq));
       const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
       Object.assign(finalWhitePawns, auto);
       console.log('Auto-filled white pawns:', remaining, 'pieces');
     }
+    
+    // Auto-fill black pawns if needed
     if (Object.keys(finalBlackPawns).length < 8) {
       const remaining = 8 - Object.keys(finalBlackPawns).length;
       const occupied = new Set(Object.keys(finalBlackPawns));
-      const empty = getDeploymentSquares('b').filter(sq => !occupied.has(sq));
+      const empty = getPawnDeploymentSquares('b').filter(sq => !occupied.has(sq));
       const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
       Object.assign(finalBlackPawns, auto);
       console.log('Auto-filled black pawns:', remaining, 'pieces');
     }
+    
+    // Auto-fill white pieces if needed
     if (Object.keys(finalWhitePieces).length < 8) {
       const remaining = 8 - Object.keys(finalWhitePieces).length;
       const occupied = new Set([...Object.keys(finalWhitePawns), ...Object.keys(finalWhitePieces)]);
-      const empty = getDeploymentSquares('w').filter(sq => !occupied.has(sq));
-      // Get the correct remaining pieces
+      const empty = getPieceDeploymentSquares('w').filter(sq => !occupied.has(sq));
       const allPieces = getStandardPieceSet();
-      const placedPieces = Object.values(finalWhitePieces) as PieceType[];
+      const placed = Object.values(finalWhitePieces) as PieceType[];
       const remainingPieces = [...allPieces];
-      for (const p of placedPieces) {
+      for (const p of placed) {
         const idx = remainingPieces.indexOf(p);
         if (idx !== -1) remainingPieces.splice(idx, 1);
       }
@@ -598,15 +522,16 @@ const App: React.FC = () => {
       Object.assign(finalWhitePieces, auto);
       console.log('Auto-filled white pieces:', remaining, 'pieces');
     }
+    
+    // Auto-fill black pieces if needed
     if (Object.keys(finalBlackPieces).length < 8) {
       const remaining = 8 - Object.keys(finalBlackPieces).length;
       const occupied = new Set([...Object.keys(finalBlackPawns), ...Object.keys(finalBlackPieces)]);
-      const empty = getDeploymentSquares('b').filter(sq => !occupied.has(sq));
-      // Get the correct remaining pieces
+      const empty = getPieceDeploymentSquares('b').filter(sq => !occupied.has(sq));
       const allPieces = getStandardPieceSet();
-      const placedPieces = Object.values(finalBlackPieces) as PieceType[];
+      const placed = Object.values(finalBlackPieces) as PieceType[];
       const remainingPieces = [...allPieces];
-      for (const p of placedPieces) {
+      for (const p of placed) {
         const idx = remainingPieces.indexOf(p);
         if (idx !== -1) remainingPieces.splice(idx, 1);
       }
@@ -614,7 +539,16 @@ const App: React.FC = () => {
       Object.assign(finalBlackPieces, auto);
       console.log('Auto-filled black pieces:', remaining, 'pieces');
     }
-
+    
+    // Update state with filled pieces
+    setWhitePawns(finalWhitePawns);
+    setWhitePieces(finalWhitePieces);
+    setBlackPawns(finalBlackPawns);
+    setBlackPieces(finalBlackPieces);
+    
+    setPhase('auto-play');
+    
+    // Build the FEN from placement (using the already auto-filled pieces)
     const fen = buildFenFromPlacement(finalWhitePawns, finalWhitePieces, finalBlackPawns, finalBlackPieces);
     console.log('Generated FEN:', fen);
     console.log('White pawns placement:', finalWhitePawns);
@@ -650,53 +584,66 @@ const App: React.FC = () => {
     // Start auto-play
     let moves = 0;
     const localEvalHistory = [initialEval];
+    let isMakingMove = false; // Prevent overlapping moves
 
     // Use async function for Stockfish integration
     const makeMove = async () => {
-      console.log(`🎬 makeMove called - Move ${moves + 1}, Turn: ${chessGame.turn()}`);
-      
-      if (chessGame.isGameOver() || moves >= MAX_MOVES) {
-        console.log('🏁 Game over or max moves reached');
-        if (autoPlayRef.current) clearInterval(autoPlayRef.current);
-        endRound(chessGame, localEvalHistory, moves);
+      if (isMakingMove) {
+        console.log('⏳ Previous move still in progress, skipping...');
         return;
       }
 
-      const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
-      const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
-      const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
-      console.log(`🎯 ${chessGame.turn() === 'w' ? 'White' : 'Black'} to move: ${currentCommander.name}`);
+      isMakingMove = true;
+      console.log(`🎬 makeMove called - Move ${moves + 1}, Turn: ${chessGame.turn()}`);
+      
+      try {
+        if (chessGame.isGameOver() || moves >= MAX_MOVES) {
+          console.log('🏁 Game over or max moves reached');
+          if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+          endRound(chessGame, localEvalHistory, moves);
+          return;
+        }
 
-      const move = await getBestMove(chessGame, currentCommander);
-      if (move) {
-        console.log(`✅ Move made: ${move.san}`);
-        chessGame.move(move);
-        setLastMove({ from: move.from, to: move.to });
-        setMoveLog(prev => [...prev, move.san]);
-        moves++;
-        setMoveCount(moves);
+        const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
+        const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
+        const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
+        console.log(`🎯 ${chessGame.turn() === 'w' ? 'White' : 'Black'} to move: ${currentCommander.name}`);
 
-        // Update board display
-        const newBoard = getInitialBoard();
-        const chessBoard = chessGame.board();
-        for (let r = 0; r < 8; r++) {
-          for (let f = 0; f < 8; f++) {
-            const piece = chessBoard[r][f];
-            if (piece) {
-              newBoard[r][f] = piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
+        const move = await getBestMove(chessGame, currentCommander);
+        if (move) {
+          console.log(`✅ Move made: ${move.san}`);
+          chessGame.move(move);
+          setLastMove({ from: move.from, to: move.to });
+          setMoveLog(prev => [...prev, move.san]);
+          moves++;
+          setMoveCount(moves);
+
+          // Update board display
+          const newBoard = getInitialBoard();
+          const chessBoard = chessGame.board();
+          for (let r = 0; r < 8; r++) {
+            for (let f = 0; f < 8; f++) {
+              const piece = chessBoard[r][f];
+              if (piece) {
+                newBoard[r][f] = piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
+              }
             }
           }
-        }
-        setBoard(newBoard);
+          setBoard(newBoard);
 
-        // Update eval - try Stockfish first, fall back to custom
-        const eval_ = await getStockfishEval(chessGame.fen());
-        console.log(`📊 Eval after move: ${eval_}`);
-        setEvalBar(eval_);
-        localEvalHistory.push(eval_);
-        setEvalHistory([...localEvalHistory]);
-      } else {
-        console.error('❌ No move returned from getBestMove!');
+          // Update eval - use custom eval for reliability
+          const eval_ = getStockfishEval(chessGame.fen());
+          console.log(`📊 Eval after move: ${eval_}`);
+          setEvalBar(eval_);
+          localEvalHistory.push(eval_);
+          setEvalHistory([...localEvalHistory]);
+        } else {
+          console.error('❌ No move returned from getBestMove!');
+        }
+      } catch (error) {
+        console.error('❌ Error in makeMove:', error);
+      } finally {
+        isMakingMove = false;
       }
     };
 
@@ -1051,12 +998,15 @@ const App: React.FC = () => {
 
             {/* Auto-play status */}
             {phase === 'auto-play' && (
-              <div className="text-center py-1 px-3 bg-green-900/50 rounded-lg border border-green-600 flex items-center justify-center gap-2">
-                <span className="text-green-300 text-sm font-bold">
-                  ▶ Move {moveCount} • {game?.turn() === 'w' ? 'White' : 'Black'} to move
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 bg-purple-800/50 border border-purple-500 rounded text-purple-300">
-                  🧠 Stockfish
+              <div className="text-center py-2 px-4 bg-green-900/50 rounded-lg border-2 border-green-500 flex items-center justify-center gap-3 animate-pulse">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
+                  <span className="text-green-300 text-sm font-bold">
+                    ▶ Move {moveCount} • {game?.turn() === 'w' ? 'White' : 'Black'} to move
+                  </span>
+                </div>
+                <span className="text-[10px] px-2 py-1 bg-purple-800/50 border border-purple-500 rounded text-purple-300 font-bold">
+                  🧠 AI Thinking...
                 </span>
               </div>
             )}
