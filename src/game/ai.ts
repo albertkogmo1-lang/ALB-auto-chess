@@ -256,7 +256,7 @@ async function initializeStockfish(): Promise<StockfishService | null> {
   return stockfishInstance;
 }
 
-export async function getBestMove(game: Chess, commander: Commander): Promise<Move | null> {
+export function getBestMove(game: Chess, commander: Commander): Move | null {
   const moves = game.moves({ verbose: true });
   if (moves.length === 0) {
     console.log('⚠️ No legal moves available');

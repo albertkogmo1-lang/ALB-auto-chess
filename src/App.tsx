@@ -584,66 +584,53 @@ const App: React.FC = () => {
     // Start auto-play
     let moves = 0;
     const localEvalHistory = [initialEval];
-    let isMakingMove = false; // Prevent overlapping moves
 
-    // Use async function for Stockfish integration
-    const makeMove = async () => {
-      if (isMakingMove) {
-        console.log('⏳ Previous move still in progress, skipping...');
+    // Synchronous move function
+    const makeMove = () => {
+      console.log(`🎬 makeMove called - Move ${moves + 1}, Turn: ${chessGame.turn()}`);
+      
+      if (chessGame.isGameOver() || moves >= MAX_MOVES) {
+        console.log('🏁 Game over or max moves reached');
+        if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+        endRound(chessGame, localEvalHistory, moves);
         return;
       }
 
-      isMakingMove = true;
-      console.log(`🎬 makeMove called - Move ${moves + 1}, Turn: ${chessGame.turn()}`);
-      
-      try {
-        if (chessGame.isGameOver() || moves >= MAX_MOVES) {
-          console.log('🏁 Game over or max moves reached');
-          if (autoPlayRef.current) clearInterval(autoPlayRef.current);
-          endRound(chessGame, localEvalHistory, moves);
-          return;
-        }
+      const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
+      const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
+      const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
+      console.log(`🎯 ${chessGame.turn() === 'w' ? 'White' : 'Black'} to move: ${currentCommander.name}`);
 
-        const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
-        const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
-        const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
-        console.log(`🎯 ${chessGame.turn() === 'w' ? 'White' : 'Black'} to move: ${currentCommander.name}`);
+      const move = getBestMove(chessGame, currentCommander);
+      if (move) {
+        console.log(`✅ Move made: ${move.san}`);
+        chessGame.move(move);
+        setLastMove({ from: move.from, to: move.to });
+        setMoveLog(prev => [...prev, move.san]);
+        moves++;
+        setMoveCount(moves);
 
-        const move = await getBestMove(chessGame, currentCommander);
-        if (move) {
-          console.log(`✅ Move made: ${move.san}`);
-          chessGame.move(move);
-          setLastMove({ from: move.from, to: move.to });
-          setMoveLog(prev => [...prev, move.san]);
-          moves++;
-          setMoveCount(moves);
-
-          // Update board display
-          const newBoard = getInitialBoard();
-          const chessBoard = chessGame.board();
-          for (let r = 0; r < 8; r++) {
-            for (let f = 0; f < 8; f++) {
-              const piece = chessBoard[r][f];
-              if (piece) {
-                newBoard[r][f] = piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
-              }
+        // Update board display
+        const newBoard = getInitialBoard();
+        const chessBoard = chessGame.board();
+        for (let r = 0; r < 8; r++) {
+          for (let f = 0; f < 8; f++) {
+            const piece = chessBoard[r][f];
+            if (piece) {
+              newBoard[r][f] = piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
             }
           }
-          setBoard(newBoard);
-
-          // Update eval - use custom eval for reliability
-          const eval_ = getStockfishEval(chessGame.fen());
-          console.log(`📊 Eval after move: ${eval_}`);
-          setEvalBar(eval_);
-          localEvalHistory.push(eval_);
-          setEvalHistory([...localEvalHistory]);
-        } else {
-          console.error('❌ No move returned from getBestMove!');
         }
-      } catch (error) {
-        console.error('❌ Error in makeMove:', error);
-      } finally {
-        isMakingMove = false;
+        setBoard(newBoard);
+
+        // Update eval - use custom eval for reliability
+        const eval_ = getStockfishEval(chessGame.fen());
+        console.log(`📊 Eval after move: ${eval_}`);
+        setEvalBar(eval_);
+        localEvalHistory.push(eval_);
+        setEvalHistory([...localEvalHistory]);
+      } else {
+        console.error('❌ No move returned from getBestMove!');
       }
     };
 
