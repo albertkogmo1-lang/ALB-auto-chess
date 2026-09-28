@@ -103,25 +103,23 @@ export function evaluatePosition(game: Chess): number {
   let score = 0;
   const board = game.board();
 
-  // Material and positional evaluation
+  // Material evaluation only - piece-square tables don't work well for random positions
   for (let rank = 0; rank < 8; rank++) {
     for (let file = 0; file < 8; file++) {
       const piece = board[rank][file];
       if (piece) {
-        const square = String.fromCharCode(97 + file) + (8 - rank);
-        const isWhite = piece.color === 'w';
-        const value = PIECE_VALUES[piece.type] + getPieceSquareValue(piece.type, square, isWhite);
-        score += isWhite ? value : -value;
+        const value = PIECE_VALUES[piece.type];
+        score += piece.color === 'w' ? value : -value;
       }
     }
   }
 
   // Mobility bonus - more moves = better position
   const currentMoves = game.moves().length;
-  const mobilityBonus = currentMoves * 3;
+  const mobilityBonus = currentMoves * 5;
   score += game.turn() === 'w' ? mobilityBonus : -mobilityBonus;
 
-  // King safety - penalize exposed kings
+  // King safety - penalize exposed kings (important for random positions)
   const whiteKingPos = findKing(board, 'w');
   const blackKingPos = findKing(board, 'b');
   
@@ -446,24 +444,43 @@ export function getBestMove(game: Chess, commander: Commander): Move | null {
   }
 }
 
+// Simple material-based evaluation for the eval bar
+// This is SEPARATE from the move-making engine to avoid bias
 export function getEvalForPosition(fen: string): number {
   const game = new Chess(fen);
-  const raw = evaluatePosition(game);
   
-  // Normalize to -100 to 100 range
-  // A pawn advantage (100 centipawns) should be around +25
-  // A knight advantage (320 centipawns) should be around +60
-  // A rook advantage (500 centipawns) should be around +80
-  // A queen advantage (900 centipawns) should be around +95
-  const normalized = raw / 4;
+  if (game.isCheckmate()) {
+    return game.turn() === 'w' ? -100 : 100;
+  }
+  if (game.isDraw()) return 0;
   
-  // Clamp to -100 to 100 range
+  // Simple material count only - no positional evaluation
+  // This gives a neutral, human-readable evaluation
+  const board = game.board();
+  let materialScore = 0;
+  
+  for (let rank = 0; rank < 8; rank++) {
+    for (let file = 0; file < 8; file++) {
+      const piece = board[rank][file];
+      if (piece) {
+        const value = PIECE_VALUES[piece.type];
+        materialScore += piece.color === 'w' ? value : -value;
+      }
+    }
+  }
+  
+  // Convert to -100 to 100 scale
+  // Pawn = 100cp, so divide by 4 to get ±25 per pawn
+  const normalized = materialScore / 4;
+  
+  // Clamp to -100 to 100
   return Math.max(-100, Math.min(100, normalized));
 }
 
 export function getStockfishEval(fen: string): number {
-  // Use custom eval for reliability
-  const customEval = getEvalForPosition(fen);
-  console.log(`📊 Eval: ${customEval}`);
-  return customEval;
+  // Use simple material eval for the eval bar
+  // This is SEPARATE from the move-making engine
+  const eval_ = getEvalForPosition(fen);
+  console.log(`📊 Eval (material only): ${eval_}`);
+  return eval_;
 }
