@@ -162,15 +162,28 @@ function minimax(
 }
 
 // Map ELO to Stockfish parameters
+// Based on chess engine analysis standards for different playing levels
 function eloToStockfishParams(elo: number): { depth: number; skillLevel: number } {
   // Stockfish skill level: 0-20 (20 = full strength)
   // Search depth: affects how far it looks ahead
-  if (elo >= 2400) return { depth: 14, skillLevel: 20 };
-  if (elo >= 2200) return { depth: 12, skillLevel: 18 };
-  if (elo >= 2000) return { depth: 10, skillLevel: 14 };
-  if (elo >= 1900) return { depth: 8, skillLevel: 10 };
-  if (elo >= 1800) return { depth: 6, skillLevel: 6 };
-  return { depth: 4, skillLevel: 3 };
+  
+  // 2400 ELO (International/Senior Master): Depth 30+ for elite-level analysis
+  if (elo >= 2400) return { depth: 30, skillLevel: 20 };
+  
+  // 2200 ELO (Master): Depth 20-25 for subtle endgame and positional play
+  if (elo >= 2200) return { depth: 22, skillLevel: 18 };
+  
+  // 2000 ELO (Expert): Depth 15-20 for reliable longer lines
+  if (elo >= 2000) return { depth: 18, skillLevel: 14 };
+  
+  // 1900 ELO (Class A/Advanced): Depth 13-15 for typical calculation horizon
+  if (elo >= 1900) return { depth: 15, skillLevel: 10 };
+  
+  // 1800 ELO (Class A/Advanced): Depth 13-15 for tactical awareness
+  if (elo >= 1800) return { depth: 13, skillLevel: 6 };
+  
+  // Below 1800: Reduced depth for weaker play
+  return { depth: 10, skillLevel: 3 };
 }
 
 // Fallback custom engine
