@@ -700,21 +700,22 @@ const App: React.FC = () => {
     console.log('🚀 Starting auto-play');
 
     const makeMove = () => {
-      console.log('💓 makeMove() called, move count:', movesRef.count);
-      if (chessGame.isGameOver() || movesRef.count >= MAX_MOVES) {
-        console.log('🏁 Game over or max moves reached');
-        if (autoPlayRef.current) clearInterval(autoPlayRef.current);
-        endRound(chessGame, localEvalHistory, movesRef.count);
-        return;
-      }
+      try {
+        console.log('💓 makeMove() called, move count:', movesRef.count);
+        if (chessGame.isGameOver() || movesRef.count >= MAX_MOVES) {
+          console.log('🏁 Game over or max moves reached');
+          if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+          endRound(chessGame, localEvalHistory, movesRef.count);
+          return;
+        }
 
-      const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
-      const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
-      const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
-      console.log('🎯 Current commander:', currentCommander.name, 'ELO:', currentCommander.elo);
+        const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
+        const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
+        const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
+        console.log('🎯 Current commander:', currentCommander.name, 'ELO:', currentCommander.elo);
 
-      const move = getBestMove(chessGame, currentCommander);
-      console.log('🤖 getBestMove returned:', move?.san || 'null');
+        const move = getBestMove(chessGame, currentCommander);
+        console.log('🤖 getBestMove returned:', move?.san || 'null');
       if (move) {
         chessGame.move(move);
         setLastMove({ from: move.from, to: move.to });
@@ -737,13 +738,23 @@ const App: React.FC = () => {
 
         // Update eval
         const eval_ = getEvalForPosition(chessGame.fen());
+        console.log('📊 Eval calculated:', eval_);
         setEvalBar(eval_);
         localEvalHistory.push(eval_);
         setEvalHistory([...localEvalHistory]);
       }
+      } catch (error) {
+        console.error('❌ makeMove() error:', error);
+        console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
+      }
     };
 
-    autoPlayRef.current = setInterval(makeMove, MOVE_INTERVAL);
+    let intervalHeartbeat = 0;
+    autoPlayRef.current = setInterval(() => {
+      intervalHeartbeat++;
+      console.log(`⏰ Interval heartbeat #${intervalHeartbeat}`);
+      makeMove();
+    }, MOVE_INTERVAL);
     console.log('⏱️ Auto-play interval created, ID:', autoPlayRef.current, 'interval:', MOVE_INTERVAL, 'ms');
   }, [whitePawns, whitePieces, blackPawns, blackPieces, selectedCommanderWhite, selectedCommanderBlack, whiteCommanders, blackCommanders]);
 

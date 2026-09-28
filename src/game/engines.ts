@@ -16,12 +16,18 @@ const PIECE_VALUES_SIMPLE: Record<string, number> = {
 };
 
 export function getEvalForPosition(fen: string): number {
+  console.log('📊 getEvalForPosition called with FEN:', fen.substring(0, 50) + '...');
   const game = new Chess(fen);
   
   if (game.isCheckmate()) {
-    return game.turn() === 'w' ? -100 : 100;
+    const eval_ = game.turn() === 'w' ? -100 : 100;
+    console.log('📊 Checkmate detected, eval:', eval_);
+    return eval_;
   }
-  if (game.isDraw()) return 0;
+  if (game.isDraw()) {
+    console.log('📊 Draw detected, eval: 0');
+    return 0;
+  }
   
   // Simple material count only
   const board = game.board();
@@ -39,7 +45,9 @@ export function getEvalForPosition(fen: string): number {
   
   // Normalize to -100 to 100 scale
   const normalized = materialScore / 4;
-  return Math.max(-100, Math.min(100, normalized));
+  const finalEval = Math.max(-100, Math.min(100, normalized));
+  console.log('📊 Material score:', materialScore, 'Normalized eval:', finalEval);
+  return finalEval;
 }
 
 // ============================================================================
