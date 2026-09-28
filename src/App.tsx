@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const [currentRound, setCurrentRound] = useState(1);
   const [whiteScore, setWhiteScore] = useState(0);
   const [blackScore, setBlackScore] = useState(0);
+  const [gameMode, setGameMode] = useState<'player' | 'bot-vs-bot'>('player');
   const [whiteCommanders, setWhiteCommanders] = useState<Commander[]>(
     INITIAL_COMMANDERS.map(c => ({ ...c }))
   );
@@ -119,10 +120,15 @@ const App: React.FC = () => {
 
       case 'pawn-reveal':
         // After pawn reveal, move to piece placement
-        setPhase('piece-placement');
-        setPhaseTimer(PIECE_TIME);
-        setMaxTimer(PIECE_TIME);
-        setSelectedPiece(null);
+        if (gameMode === 'bot-vs-bot') {
+          // In bot-vs-bot mode, auto-place pieces immediately
+          startBotPiecePlacement();
+        } else {
+          setPhase('piece-placement');
+          setPhaseTimer(PIECE_TIME);
+          setMaxTimer(PIECE_TIME);
+          setSelectedPiece(null);
+        }
         break;
 
       case 'piece-placement': {
@@ -156,9 +162,31 @@ const App: React.FC = () => {
 
       case 'piece-reveal':
         // After piece reveal, move to commander draft
-        setPhase('commander-draft');
-        setPhaseTimer(DRAFT_TIME);
-        setMaxTimer(DRAFT_TIME);
+        if (gameMode === 'bot-vs-bot') {
+          // In bot-vs-bot mode, auto-select commanders and start playing
+          const availableWhite = whiteCommanders.filter(c => !c.used);
+          const availableBlack = blackCommanders.filter(c => !c.used);
+          
+          if (availableWhite.length > 0) {
+            const whiteCmd = availableWhite[Math.floor(Math.random() * availableWhite.length)];
+            setSelectedCommanderWhite(whiteCmd);
+          }
+          if (availableBlack.length > 0) {
+            const blackCmd = availableBlack[Math.floor(Math.random() * availableBlack.length)];
+            setSelectedCommanderBlack(blackCmd);
+          }
+          
+          // Start auto-play after a brief delay to show the commanders
+          setTimeout(() => {
+            setPhase('commander-draft');
+            setPhaseTimer(2);
+            setMaxTimer(2);
+          }, 1000);
+        } else {
+          setPhase('commander-draft');
+          setPhaseTimer(DRAFT_TIME);
+          setMaxTimer(DRAFT_TIME);
+        }
         break;
 
       case 'commander-draft':
@@ -180,7 +208,7 @@ const App: React.FC = () => {
         setTimeout(() => startAutoPlay(), 1500);
         break;
     }
-  }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, whiteCommanders, blackCommanders, selectedCommanderWhite, selectedCommanderBlack]);
+  }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, whiteCommanders, blackCommanders, selectedCommanderWhite, selectedCommanderBlack, gameMode]);
 
   // Timer effect
   useEffect(() => {
@@ -199,7 +227,8 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [phaseTimer, phase, handlePhaseTimeout]);
 
-  const startGame = () => {
+  const startGame = (mode: 'player' | 'bot-vs-bot' = 'player') => {
+    setGameMode(mode);
     setCurrentRound(1);
     setWhiteScore(0);
     setBlackScore(0);
@@ -207,9 +236,57 @@ const App: React.FC = () => {
     setBlackCommanders(INITIAL_COMMANDERS.map(c => ({ ...c })));
     setRoundResults([]);
     resetRound();
-    setPhase('pawn-placement');
-    setPhaseTimer(PAWN_TIME);
-    setMaxTimer(PAWN_TIME);
+    
+    if (mode === 'bot-vs-bot') {
+      // Auto-fill both sides immediately
+      startBotPlacement();
+    } else {
+      setPhase('pawn-placement');
+      setPhaseTimer(PAWN_TIME);
+      setMaxTimer(PAWN_TIME);
+    }
+  };
+
+  const startBotPlacement = () => {
+    // Auto-place all white pawns
+    const whitePawnTypes = getPawnSet();
+    const whiteDeployZone = getDeploymentSquares('w');
+    const autoWhitePawns = autoPlaceRandom(whitePawnTypes, whiteDeployZone);
+    setWhitePawns(autoWhitePawns);
+    
+    // Auto-place all black pawns
+    const blackPawnTypes = getPawnSet();
+    const blackDeployZone = getDeploymentSquares('b');
+    const autoBlackPawns = autoPlaceRandom(blackPawnTypes, blackDeployZone);
+    setBlackPawns(autoBlackPawns);
+    
+    // Show pawn reveal
+    setPhase('pawn-reveal');
+    setPhaseTimer(3);
+    setMaxTimer(3);
+  };
+
+  const startBotPiecePlacement = () => {
+    // Auto-place all white pieces
+    const whitePieceTypes = getStandardPieceSet();
+    const whiteDeployZone = getDeploymentSquares('w');
+    const whiteOccupied = new Set(Object.keys(whitePawns));
+    const whiteEmpty = whiteDeployZone.filter(sq => !whiteOccupied.has(sq));
+    const autoWhitePieces = autoPlaceRandom(whitePieceTypes, whiteEmpty);
+    setWhitePieces(autoWhitePieces);
+    
+    // Auto-place all black pieces
+    const blackPieceTypes = getStandardPieceSet();
+    const blackDeployZone = getDeploymentSquares('b');
+    const blackOccupied = new Set(Object.keys(blackPawns));
+    const blackEmpty = blackDeployZone.filter(sq => !blackOccupied.has(sq));
+    const autoBlackPieces = autoPlaceRandom(blackPieceTypes, blackEmpty);
+    setBlackPieces(autoBlackPieces);
+    
+    // Show piece reveal
+    setPhase('piece-reveal');
+    setPhaseTimer(3);
+    setMaxTimer(3);
   };
 
   const resetRound = () => {
@@ -514,6 +591,13 @@ const App: React.FC = () => {
 
     setPhase('round-result');
     setShowRoundResult(true);
+    
+    // In bot-vs-bot mode, auto-advance after 3 seconds
+    if (gameMode === 'bot-vs-bot') {
+      setTimeout(() => {
+        handleNextRound();
+      }, 3000);
+    }
   };
 
   const handleNextRound = () => {
@@ -523,9 +607,15 @@ const App: React.FC = () => {
     } else {
       setCurrentRound(prev => prev + 1);
       resetRound();
-      setPhase('pawn-placement');
-      setPhaseTimer(PAWN_TIME);
-      setMaxTimer(PAWN_TIME);
+      
+      if (gameMode === 'bot-vs-bot') {
+        // Continue bot-vs-bot mode
+        startBotPlacement();
+      } else {
+        setPhase('pawn-placement');
+        setPhaseTimer(PAWN_TIME);
+        setMaxTimer(PAWN_TIME);
+      }
     }
   };
 
@@ -619,14 +709,24 @@ const App: React.FC = () => {
               <li>5 rounds, different commanders each time</li>
             </ol>
           </div>
-          <button
-            onClick={startGame}
-            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl text-white font-bold text-xl
-              hover:from-purple-500 hover:to-blue-500 transition-all duration-200 shadow-lg shadow-purple-500/30
-              hover:scale-105 active:scale-95"
-          >
-            ⚔️ Start Match
-          </button>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => startGame('player')}
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl text-white font-bold text-xl
+                hover:from-purple-500 hover:to-blue-500 transition-all duration-200 shadow-lg shadow-purple-500/30
+                hover:scale-105 active:scale-95"
+            >
+              ⚔️ Play vs Bot
+            </button>
+            <button
+              onClick={() => startGame('bot-vs-bot')}
+              className="px-8 py-3 bg-gradient-to-r from-green-600 to-teal-600 rounded-xl text-white font-bold text-lg
+                hover:from-green-500 hover:to-teal-500 transition-all duration-200 shadow-lg shadow-green-500/30
+                hover:scale-105 active:scale-95"
+            >
+              🤖 Bot vs Bot (Test Mode)
+            </button>
+          </div>
           <div className="mt-6 grid grid-cols-5 gap-2">
             {INITIAL_COMMANDERS.map(cmd => (
               <div key={cmd.id} className="bg-gray-800/50 rounded-lg p-2 border border-gray-700">
@@ -692,9 +792,16 @@ const App: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-3">
-          <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-purple-400">
-            ♟ ALB Auto-Chess
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-purple-400">
+              ♟ ALB Auto-Chess
+            </h1>
+            {gameMode === 'bot-vs-bot' && (
+              <span className="px-2 py-1 bg-green-600/30 border border-green-500 rounded text-xs text-green-300 font-bold">
+                🤖 BOT vs BOT
+              </span>
+            )}
+          </div>
           <RoundTracker
             currentRound={currentRound}
             totalRounds={5}
