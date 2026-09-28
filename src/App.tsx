@@ -9,7 +9,7 @@ import PieceTray from './components/PieceTray';
 import RoundResultModal from './components/RoundResultModal';
 import { GameState, GamePhase, Commander, PieceType, Color, RoundResult, INITIAL_COMMANDERS } from './game/types';
 import { getDeploymentSquares, getPawnDeploymentSquares, getPieceDeploymentSquares, getKingDeploymentSquares, autoPlaceRandom, getStandardPieceSet, getPawnSet, buildFenFromPlacement } from './game/placement';
-import { getBestMove, getEvalForPosition, getStockfishEval } from './game/ai';
+import { getBestMove, getEvalForPosition } from './game/engines';
 
 const PAWN_TIME = 30;
 const PIECE_TIME = 50;
@@ -730,7 +730,7 @@ const App: React.FC = () => {
         setBoard(newBoard);
 
         // Update eval
-        const eval_ = getStockfishEval(chessGame.fen());
+        const eval_ = getEvalForPosition(chessGame.fen());
         setEvalBar(eval_);
         localEvalHistory.push(eval_);
         setEvalHistory([...localEvalHistory]);
