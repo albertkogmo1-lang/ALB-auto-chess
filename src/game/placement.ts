@@ -27,9 +27,9 @@ export function getPawnDeploymentSquares(color: Color): string[] {
 
 export function getPieceDeploymentSquares(color: Color): string[] {
   const squares: string[] = [];
-  // Pieces can be placed anywhere in rows 1-4 (white) or 5-8 (black)
-  const startRow = color === 'w' ? 1 : 5;
-  const endRow = color === 'w' ? 4 : 8;
+  // Pieces (including king) can only be placed in rows 1-2 (white) or 7-8 (black)
+  const startRow = color === 'w' ? 1 : 7;
+  const endRow = color === 'w' ? 2 : 8;
   for (let row = startRow; row <= endRow; row++) {
     for (let col = 0; col < 8; col++) {
       squares.push(String.fromCharCode(97 + col) + row);
