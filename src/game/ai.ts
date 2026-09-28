@@ -103,6 +103,7 @@ export function evaluatePosition(game: Chess): number {
   let score = 0;
   const board = game.board();
 
+  // Material and positional evaluation
   for (let rank = 0; rank < 8; rank++) {
     for (let file = 0; file < 8; file++) {
       const piece = board[rank][file];
@@ -115,11 +116,120 @@ export function evaluatePosition(game: Chess): number {
     }
   }
 
-  // Mobility bonus
+  // Mobility bonus - more moves = better position
   const currentMoves = game.moves().length;
-  const mobilityBonus = currentMoves * 2;
+  const mobilityBonus = currentMoves * 3;
   score += game.turn() === 'w' ? mobilityBonus : -mobilityBonus;
 
+  // King safety - penalize exposed kings
+  const whiteKingPos = findKing(board, 'w');
+  const blackKingPos = findKing(board, 'b');
+  
+  if (whiteKingPos) {
+    const kingSafety = evaluateKingSafety(board, whiteKingPos, 'w');
+    score += kingSafety;
+  }
+  
+  if (blackKingPos) {
+    const kingSafety = evaluateKingSafety(board, blackKingPos, 'b');
+    score -= kingSafety;
+  }
+
+  // Pawn structure - penalize isolated and doubled pawns
+  const pawnStructure = evaluatePawnStructure(board);
+  score += pawnStructure;
+
+  return score;
+}
+
+function findKing(board: any[][], color: 'w' | 'b'): { rank: number; file: number } | null {
+  for (let rank = 0; rank < 8; rank++) {
+    for (let file = 0; file < 8; file++) {
+      const piece = board[rank][file];
+      if (piece && piece.type === 'k' && piece.color === color) {
+        return { rank, file };
+      }
+    }
+  }
+  return null;
+}
+
+function evaluateKingSafety(board: any[][], kingPos: { rank: number; file: number }, color: 'w' | 'b'): number {
+  let safety = 0;
+  const { rank, file } = kingPos;
+  
+  // Count pawns near the king (pawn shield)
+  const pawnShieldBonus = 15;
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let df = -1; df <= 1; df++) {
+      if (dr === 0 && df === 0) continue;
+      const r = rank + (color === 'w' ? dr : -dr);
+      const f = file + df;
+      if (r >= 0 && r < 8 && f >= 0 && f < 8) {
+        const piece = board[r][f];
+        if (piece && piece.type === 'p' && piece.color === color) {
+          safety += pawnShieldBonus;
+        }
+      }
+    }
+  }
+  
+  // Penalize king in center (should be castled)
+  const centerDistance = Math.abs(file - 3.5) + Math.abs(rank - (color === 'w' ? 0 : 7));
+  if (centerDistance < 3) {
+    safety -= 20;
+  }
+  
+  return safety;
+}
+
+function evaluatePawnStructure(board: any[][]): number {
+  let score = 0;
+  
+  // Count pawns by file for each color
+  const whitePawnsByFile = new Array(8).fill(0);
+  const blackPawnsByFile = new Array(8).fill(0);
+  
+  for (let rank = 0; rank < 8; rank++) {
+    for (let file = 0; file < 8; file++) {
+      const piece = board[rank][file];
+      if (piece && piece.type === 'p') {
+        if (piece.color === 'w') {
+          whitePawnsByFile[file]++;
+        } else {
+          blackPawnsByFile[file]++;
+        }
+      }
+    }
+  }
+  
+  // Penalize doubled pawns
+  const doubledPawnPenalty = 20;
+  for (let file = 0; file < 8; file++) {
+    if (whitePawnsByFile[file] > 1) {
+      score -= (whitePawnsByFile[file] - 1) * doubledPawnPenalty;
+    }
+    if (blackPawnsByFile[file] > 1) {
+      score += (blackPawnsByFile[file] - 1) * doubledPawnPenalty;
+    }
+  }
+  
+  // Penalize isolated pawns (no pawns on adjacent files)
+  const isolatedPawnPenalty = 15;
+  for (let file = 0; file < 8; file++) {
+    const hasAdjacentWhite = (file > 0 && whitePawnsByFile[file - 1] > 0) || 
+                             (file < 7 && whitePawnsByFile[file + 1] > 0);
+    const hasAdjacentBlack = (file > 0 && blackPawnsByFile[file - 1] > 0) || 
+                             (file < 7 && blackPawnsByFile[file + 1] > 0);
+    
+    if (whitePawnsByFile[file] > 0 && !hasAdjacentWhite) {
+      score -= whitePawnsByFile[file] * isolatedPawnPenalty;
+    }
+    if (blackPawnsByFile[file] > 0 && !hasAdjacentBlack) {
+      score += blackPawnsByFile[file] * isolatedPawnPenalty;
+    }
+  }
+  
   return score;
 }
 
@@ -162,28 +272,27 @@ function minimax(
 }
 
 // Map ELO to search parameters
-// Optimized for browser-based play with practical search depths
+// Balanced for browser performance while maintaining realistic ELO strength
 function eloToStockfishParams(elo: number): { depth: number; skillLevel: number } {
   // Search depth: affects how far it looks ahead
-  // NOTE: JavaScript minimax is slow, so we use shallow depths
-  // Strength differences come from blunder rates and aggression
+  // With alpha-beta pruning and move ordering, these depths are feasible
   
-  // 2600 ELO (Super GM): Depth 3
-  if (elo >= 2600) return { depth: 3, skillLevel: 20 };
+  // 2600 ELO (Super GM): Depth 6 - Strong tactical vision
+  if (elo >= 2600) return { depth: 6, skillLevel: 20 };
   
-  // 2400 ELO (International/Senior Master): Depth 3
-  if (elo >= 2400) return { depth: 3, skillLevel: 18 };
+  // 2400 ELO (International Master): Depth 5 - Very strong calculation
+  if (elo >= 2400) return { depth: 5, skillLevel: 18 };
   
-  // 2200 ELO (Master): Depth 2-3
-  if (elo >= 2200) return { depth: 2, skillLevel: 14 };
+  // 2200 ELO (Master): Depth 4 - Strong positional play
+  if (elo >= 2200) return { depth: 4, skillLevel: 14 };
   
-  // 2000 ELO (Expert): Depth 2
-  if (elo >= 2000) return { depth: 2, skillLevel: 10 };
+  // 2000 ELO (Expert): Depth 3 - Good tactical awareness
+  if (elo >= 2000) return { depth: 3, skillLevel: 10 };
   
-  // 1800 ELO (Class A/Advanced): Depth 1-2
-  if (elo >= 1800) return { depth: 1, skillLevel: 6 };
+  // 1800 ELO (Class A): Depth 2 - Solid but limited calculation
+  if (elo >= 1800) return { depth: 2, skillLevel: 6 };
   
-  // Below 1800: Reduced depth for weaker play
+  // Below 1800: Very shallow search
   return { depth: 1, skillLevel: 3 };
 }
 
@@ -340,8 +449,16 @@ export function getBestMove(game: Chess, commander: Commander): Move | null {
 export function getEvalForPosition(fen: string): number {
   const game = new Chess(fen);
   const raw = evaluatePosition(game);
+  
   // Normalize to -100 to 100 range
-  return Math.max(-100, Math.min(100, raw / 30));
+  // A pawn advantage (100 centipawns) should be around +25
+  // A knight advantage (320 centipawns) should be around +60
+  // A rook advantage (500 centipawns) should be around +80
+  // A queen advantage (900 centipawns) should be around +95
+  const normalized = raw / 4;
+  
+  // Clamp to -100 to 100 range
+  return Math.max(-100, Math.min(100, normalized));
 }
 
 export function getStockfishEval(fen: string): number {

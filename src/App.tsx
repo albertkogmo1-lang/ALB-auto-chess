@@ -688,6 +688,10 @@ const App: React.FC = () => {
     
     // Calculate initial eval
     const initialEval = getEvalForPosition(chessGame.fen());
+    console.log('📊 [EVAL] Initial position evaluation:', initialEval);
+    console.log('📊 [EVAL] Positive = White advantage, Negative = Black advantage');
+    console.log('📊 [EVAL] Scale: -100 (Black winning) to +100 (White winning)');
+    
     setEvalBar(initialEval);
     setEvalHistory([initialEval]);
 
