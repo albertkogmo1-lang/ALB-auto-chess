@@ -455,6 +455,13 @@ const App: React.FC = () => {
     const finalBlackPawns = { ...blackPawns };
     const finalBlackPieces = { ...blackPieces };
 
+    // Debug logging
+    console.log('Starting auto-play with placements:');
+    console.log('White pawns:', Object.keys(finalWhitePawns).length);
+    console.log('White pieces:', Object.keys(finalWhitePieces).length);
+    console.log('Black pawns:', Object.keys(finalBlackPawns).length);
+    console.log('Black pieces:', Object.keys(finalBlackPieces).length);
+
     // Auto-fill any missing placements
     if (Object.keys(finalWhitePawns).length < 8) {
       const remaining = 8 - Object.keys(finalWhitePawns).length;
@@ -462,6 +469,7 @@ const App: React.FC = () => {
       const empty = getDeploymentSquares('w').filter(sq => !occupied.has(sq));
       const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
       Object.assign(finalWhitePawns, auto);
+      console.log('Auto-filled white pawns:', remaining, 'pieces');
     }
     if (Object.keys(finalBlackPawns).length < 8) {
       const remaining = 8 - Object.keys(finalBlackPawns).length;
@@ -469,28 +477,54 @@ const App: React.FC = () => {
       const empty = getDeploymentSquares('b').filter(sq => !occupied.has(sq));
       const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
       Object.assign(finalBlackPawns, auto);
+      console.log('Auto-filled black pawns:', remaining, 'pieces');
     }
     if (Object.keys(finalWhitePieces).length < 8) {
       const remaining = 8 - Object.keys(finalWhitePieces).length;
       const occupied = new Set([...Object.keys(finalWhitePawns), ...Object.keys(finalWhitePieces)]);
       const empty = getDeploymentSquares('w').filter(sq => !occupied.has(sq));
-      const auto = autoPlaceRandom(getStandardPieceSet().slice(0, remaining), empty);
+      // Get the correct remaining pieces
+      const allPieces = getStandardPieceSet();
+      const placedPieces = Object.values(finalWhitePieces) as PieceType[];
+      const remainingPieces = [...allPieces];
+      for (const p of placedPieces) {
+        const idx = remainingPieces.indexOf(p);
+        if (idx !== -1) remainingPieces.splice(idx, 1);
+      }
+      const auto = autoPlaceRandom(remainingPieces.slice(0, remaining), empty);
       Object.assign(finalWhitePieces, auto);
+      console.log('Auto-filled white pieces:', remaining, 'pieces');
     }
     if (Object.keys(finalBlackPieces).length < 8) {
       const remaining = 8 - Object.keys(finalBlackPieces).length;
       const occupied = new Set([...Object.keys(finalBlackPawns), ...Object.keys(finalBlackPieces)]);
       const empty = getDeploymentSquares('b').filter(sq => !occupied.has(sq));
-      const auto = autoPlaceRandom(getStandardPieceSet().slice(0, remaining), empty);
+      // Get the correct remaining pieces
+      const allPieces = getStandardPieceSet();
+      const placedPieces = Object.values(finalBlackPieces) as PieceType[];
+      const remainingPieces = [...allPieces];
+      for (const p of placedPieces) {
+        const idx = remainingPieces.indexOf(p);
+        if (idx !== -1) remainingPieces.splice(idx, 1);
+      }
+      const auto = autoPlaceRandom(remainingPieces.slice(0, remaining), empty);
       Object.assign(finalBlackPieces, auto);
+      console.log('Auto-filled black pieces:', remaining, 'pieces');
     }
 
     const fen = buildFenFromPlacement(finalWhitePawns, finalWhitePieces, finalBlackPawns, finalBlackPieces);
     
+    // Validate FEN before creating game
     let chessGame: Chess;
     try {
+      // Test if FEN is valid by attempting to load it
+      const testGame = new Chess();
+      testGame.load(fen);
       chessGame = new Chess(fen);
-    } catch {
+    } catch (error) {
+      console.error('Invalid FEN, using standard position:', error);
+      console.log('Generated FEN:', fen);
+      console.log('Placements:', { finalWhitePawns, finalWhitePieces, finalBlackPawns, finalBlackPieces });
       // If FEN is invalid, start from standard position
       chessGame = new Chess();
     }

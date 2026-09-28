@@ -86,5 +86,31 @@ export function buildFenFromPlacement(
     rows.push(row);
   }
   
-  return rows.join('/') + ' w - - 0 1';
+  const fen = rows.join('/') + ' w - - 0 1';
+  
+  // Validate FEN structure
+  const parts = fen.split(' ');
+  if (parts.length !== 6) {
+    console.error('Invalid FEN structure:', fen);
+    return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1';
+  }
+  
+  // Check if each rank sums to 8
+  const ranks = parts[0].split('/');
+  for (const rank of ranks) {
+    let sum = 0;
+    for (const char of rank) {
+      if (/[1-8]/.test(char)) {
+        sum += parseInt(char);
+      } else if (/[prnbqkPRNBQK]/.test(char)) {
+        sum += 1;
+      }
+    }
+    if (sum !== 8) {
+      console.error('Invalid rank in FEN:', rank, 'sum:', sum);
+      return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1';
+    }
+  }
+  
+  return fen;
 }

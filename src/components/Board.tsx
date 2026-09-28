@@ -74,7 +74,12 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
                 onClick={() => onSquareClick?.(square)}
               >
                 {piece && (
-                  <span className="text-3xl select-none drop-shadow-md" style={{ fontSize: '2rem' }}>
+                  <span 
+                    className={`text-3xl select-none drop-shadow-md ${
+                      piece === piece.toUpperCase() ? 'text-white' : 'text-gray-900'
+                    }`}
+                    style={{ fontSize: '2rem', textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}
+                  >
                     {PIECE_UNICODE[piece] || ''}
                   </span>
                 )}
