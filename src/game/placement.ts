@@ -47,6 +47,12 @@ export function buildFenFromPlacement(
   blackPawns: Record<string, string>,
   blackPieces: Record<string, string>
 ): string {
+  console.log('Building FEN from placement...');
+  console.log('Input - White pawns:', whitePawns);
+  console.log('Input - White pieces:', whitePieces);
+  console.log('Input - Black pawns:', blackPawns);
+  console.log('Input - Black pieces:', blackPieces);
+  
   const board: (string | null)[][] = Array(8).fill(null).map(() => Array(8).fill(null));
   
   // Place all pieces on the board
@@ -57,14 +63,19 @@ export function buildFenFromPlacement(
     { placement: blackPieces, color: 'b' },
   ];
   
+  let totalPieces = 0;
   for (const { placement, color } of allPlacements) {
     for (const [square, piece] of Object.entries(placement)) {
       const file = square.charCodeAt(0) - 97;
       const rank = parseInt(square[1]) - 1;
       const fenChar = color === 'w' ? piece.toUpperCase() : piece.toLowerCase();
       board[7 - rank][file] = fenChar;
+      totalPieces++;
     }
   }
+  
+  console.log('Total pieces placed on board:', totalPieces);
+  console.log('Board state:', board);
   
   // Build FEN
   const rows: string[] = [];
@@ -87,17 +98,20 @@ export function buildFenFromPlacement(
   }
   
   const fen = rows.join('/') + ' w - - 0 1';
+  console.log('Generated FEN string:', fen);
   
   // Validate FEN structure
   const parts = fen.split(' ');
   if (parts.length !== 6) {
-    console.error('Invalid FEN structure:', fen);
+    console.error('❌ Invalid FEN structure:', fen, 'parts:', parts.length);
     return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1';
   }
   
   // Check if each rank sums to 8
   const ranks = parts[0].split('/');
-  for (const rank of ranks) {
+  console.log('FEN ranks:', ranks);
+  for (let i = 0; i < ranks.length; i++) {
+    const rank = ranks[i];
     let sum = 0;
     for (const char of rank) {
       if (/[1-8]/.test(char)) {
@@ -106,11 +120,13 @@ export function buildFenFromPlacement(
         sum += 1;
       }
     }
+    console.log(`Rank ${8-i}: "${rank}" sum=${sum}`);
     if (sum !== 8) {
-      console.error('Invalid rank in FEN:', rank, 'sum:', sum);
+      console.error(`❌ Invalid rank ${8-i} in FEN:`, rank, 'sum:', sum);
       return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1';
     }
   }
   
+  console.log('✅ FEN validation passed');
   return fen;
 }

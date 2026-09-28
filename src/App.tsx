@@ -87,6 +87,38 @@ const App: React.FC = () => {
   const [showRoundResult, setShowRoundResult] = useState(false);
   const [currentRoundResult, setCurrentRoundResult] = useState<RoundResult | null>(null);
 
+  // Bot piece placement function (must be before handlePhaseTimeout)
+  const startBotPiecePlacement = useCallback(() => {
+    console.log('=== START BOT PIECE PLACEMENT ===');
+    console.log('Current white pawns:', whitePawns);
+    console.log('Current black pawns:', blackPawns);
+    
+    // Auto-place all white pieces
+    const whitePieceTypes = getStandardPieceSet();
+    const whiteDeployZone = getDeploymentSquares('w');
+    const whiteOccupied = new Set(Object.keys(whitePawns));
+    const whiteEmpty = whiteDeployZone.filter(sq => !whiteOccupied.has(sq));
+    console.log('White empty squares:', whiteEmpty.length);
+    const autoWhitePieces = autoPlaceRandom(whitePieceTypes, whiteEmpty);
+    console.log('Auto white pieces:', autoWhitePieces);
+    setWhitePieces(autoWhitePieces);
+    
+    // Auto-place all black pieces
+    const blackPieceTypes = getStandardPieceSet();
+    const blackDeployZone = getDeploymentSquares('b');
+    const blackOccupied = new Set(Object.keys(blackPawns));
+    const blackEmpty = blackDeployZone.filter(sq => !blackOccupied.has(sq));
+    console.log('Black empty squares:', blackEmpty.length);
+    const autoBlackPieces = autoPlaceRandom(blackPieceTypes, blackEmpty);
+    console.log('Auto black pieces:', autoBlackPieces);
+    setBlackPieces(autoBlackPieces);
+    
+    // Show piece reveal
+    setPhase('piece-reveal');
+    setPhaseTimer(3);
+    setMaxTimer(3);
+  }, [whitePawns, blackPawns]);
+
   // Timer effect
   const handlePhaseTimeout = useCallback(() => {
     switch (phase) {
@@ -208,7 +240,7 @@ const App: React.FC = () => {
         // Don't call startAutoPlay here - let the useEffect handle it
         break;
     }
-  }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, whiteCommanders, blackCommanders, selectedCommanderWhite, selectedCommanderBlack, gameMode]);
+  }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, whiteCommanders, blackCommanders, selectedCommanderWhite, selectedCommanderBlack, gameMode, startBotPiecePlacement]);
 
   // Timer effect
   useEffect(() => {
@@ -266,28 +298,7 @@ const App: React.FC = () => {
     setMaxTimer(3);
   };
 
-  const startBotPiecePlacement = () => {
-    // Auto-place all white pieces
-    const whitePieceTypes = getStandardPieceSet();
-    const whiteDeployZone = getDeploymentSquares('w');
-    const whiteOccupied = new Set(Object.keys(whitePawns));
-    const whiteEmpty = whiteDeployZone.filter(sq => !whiteOccupied.has(sq));
-    const autoWhitePieces = autoPlaceRandom(whitePieceTypes, whiteEmpty);
-    setWhitePieces(autoWhitePieces);
-    
-    // Auto-place all black pieces
-    const blackPieceTypes = getStandardPieceSet();
-    const blackDeployZone = getDeploymentSquares('b');
-    const blackOccupied = new Set(Object.keys(blackPawns));
-    const blackEmpty = blackDeployZone.filter(sq => !blackOccupied.has(sq));
-    const autoBlackPieces = autoPlaceRandom(blackPieceTypes, blackEmpty);
-    setBlackPieces(autoBlackPieces);
-    
-    // Show piece reveal
-    setPhase('piece-reveal');
-    setPhaseTimer(3);
-    setMaxTimer(3);
-  };
+
 
   const resetRound = () => {
     setWhitePawns({});
@@ -447,6 +458,29 @@ const App: React.FC = () => {
   };
 
   const startAutoPlay = useCallback(() => {
+    console.log('=== START AUTO PLAY ===');
+    console.log('Current phase:', phase);
+    console.log('White pawns:', whitePawns);
+    console.log('White pieces:', whitePieces);
+    console.log('Black pawns:', blackPawns);
+    console.log('Black pieces:', blackPieces);
+    
+    // Safety check: ensure all pieces are placed
+    const whitePawnCount = Object.keys(whitePawns).length;
+    const whitePieceCount = Object.keys(whitePieces).length;
+    const blackPawnCount = Object.keys(blackPawns).length;
+    const blackPieceCount = Object.keys(blackPieces).length;
+    
+    console.log('Piece counts:', { whitePawnCount, whitePieceCount, blackPawnCount, blackPieceCount });
+    
+    if (whitePawnCount < 8 || whitePieceCount < 8 || blackPawnCount < 8 || blackPieceCount < 8) {
+      console.error('❌ Not all pieces are placed! Aborting auto-play.');
+      console.error('Expected: 8 pawns + 8 pieces per side');
+      console.error('Got: White pawns:', whitePawnCount, 'White pieces:', whitePieceCount);
+      console.error('Got: Black pawns:', blackPawnCount, 'Black pieces:', blackPieceCount);
+      return;
+    }
+    
     setPhase('auto-play');
     
     // Build the FEN from placement
@@ -457,10 +491,10 @@ const App: React.FC = () => {
 
     // Debug logging
     console.log('Starting auto-play with placements:');
-    console.log('White pawns:', Object.keys(finalWhitePawns).length);
-    console.log('White pieces:', Object.keys(finalWhitePieces).length);
-    console.log('Black pawns:', Object.keys(finalBlackPawns).length);
-    console.log('Black pieces:', Object.keys(finalBlackPieces).length);
+    console.log('White pawns:', Object.keys(finalWhitePawns).length, finalWhitePawns);
+    console.log('White pieces:', Object.keys(finalWhitePieces).length, finalWhitePieces);
+    console.log('Black pawns:', Object.keys(finalBlackPawns).length, finalBlackPawns);
+    console.log('Black pieces:', Object.keys(finalBlackPieces).length, finalBlackPieces);
 
     // Auto-fill any missing placements
     if (Object.keys(finalWhitePawns).length < 8) {
@@ -513,6 +547,7 @@ const App: React.FC = () => {
     }
 
     const fen = buildFenFromPlacement(finalWhitePawns, finalWhitePieces, finalBlackPawns, finalBlackPieces);
+    console.log('Generated FEN:', fen);
     
     // Validate FEN before creating game
     let chessGame: Chess;
@@ -521,10 +556,14 @@ const App: React.FC = () => {
       const testGame = new Chess();
       testGame.load(fen);
       chessGame = new Chess(fen);
+      console.log('FEN is valid, game created successfully');
     } catch (error) {
-      console.error('Invalid FEN, using standard position:', error);
+      console.error('❌ Invalid FEN, using standard position:', error);
       console.log('Generated FEN:', fen);
-      console.log('Placements:', { finalWhitePawns, finalWhitePieces, finalBlackPawns, finalBlackPieces });
+      console.log('White pawns:', finalWhitePawns);
+      console.log('White pieces:', finalWhitePieces);
+      console.log('Black pawns:', finalBlackPawns);
+      console.log('Black pieces:', finalBlackPieces);
       // If FEN is invalid, start from standard position
       chessGame = new Chess();
     }
