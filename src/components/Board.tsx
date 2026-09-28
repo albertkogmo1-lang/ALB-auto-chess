@@ -4,7 +4,7 @@ import { Color, PieceType } from '../game/types';
 interface BoardProps {
   board: (string | null)[][];
   onSquareClick?: (square: string) => void;
-  highlightZone?: Color;
+  highlightZone?: Color | 'both';
   occupiedSquares?: Set<string>;
   placementMode?: boolean;
   lastMove?: { from: string; to: string } | null;
@@ -26,6 +26,10 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
     const actualRank = 8 - rank;
     if (highlightZone === 'w' && actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/30';
     if (highlightZone === 'b' && actualRank >= 5 && actualRank <= 8) return 'ring-2 ring-inset ring-red-400/30';
+    if (highlightZone === 'both') {
+      if (actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/40';
+      if (actualRank >= 5 && actualRank <= 8) return 'ring-2 ring-inset ring-red-400/40';
+    }
     return '';
   };
 

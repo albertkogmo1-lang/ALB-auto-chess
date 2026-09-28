@@ -111,6 +111,14 @@ const App: React.FC = () => {
         setWhitePawns(prev => ({ ...prev, ...autoWhitePawns }));
         setBlackPawns(prev => ({ ...prev, ...autoBlackPawns }));
         
+        // REVEAL PAWNS - Show both sides' pawn formations
+        setPhase('pawn-reveal');
+        setPhaseTimer(3);
+        setMaxTimer(3);
+        break;
+
+      case 'pawn-reveal':
+        // After pawn reveal, move to piece placement
         setPhase('piece-placement');
         setPhaseTimer(PIECE_TIME);
         setMaxTimer(PIECE_TIME);
@@ -139,14 +147,19 @@ const App: React.FC = () => {
         setWhitePieces(prev => ({ ...prev, ...autoWhitePieces }));
         setBlackPieces(prev => ({ ...prev, ...autoBlackPieces }));
         
-        setPhase('reveal');
-        setTimeout(() => {
-          setPhase('commander-draft');
-          setPhaseTimer(DRAFT_TIME);
-          setMaxTimer(DRAFT_TIME);
-        }, 2000);
+        // REVEAL ALL PIECES - Show complete formations
+        setPhase('piece-reveal');
+        setPhaseTimer(3);
+        setMaxTimer(3);
         break;
       }
+
+      case 'piece-reveal':
+        // After piece reveal, move to commander draft
+        setPhase('commander-draft');
+        setPhaseTimer(DRAFT_TIME);
+        setMaxTimer(DRAFT_TIME);
+        break;
 
       case 'commander-draft':
         // Auto-select commanders
@@ -290,6 +303,34 @@ const App: React.FC = () => {
       }
       setPhaseTimer(0); // Trigger timeout to move to next phase
     } else if (phase === 'piece-placement') {
+      // Auto-fill remaining white pieces
+      if (Object.keys(whitePieces).length < 8) {
+        const remaining = 8 - Object.keys(whitePieces).length;
+        const occupied = new Set([...Object.keys(whitePawns), ...Object.keys(whitePieces)]);
+        const empty = getDeploymentSquares('w').filter(sq => !occupied.has(sq));
+        const allPieces = getStandardPieceSet();
+        const placed = Object.values(whitePieces);
+        const remainingTypes = allPieces.filter((p, i) => {
+          const countSoFar = placed.filter(x => x === p).length;
+          const totalCount = allPieces.filter(x => x === p).length;
+          // Count how many of this type have been used
+          const usedCount = placed.filter(x => x === p).length;
+          return i >= placed.filter(x => x === p).length;
+        });
+        const auto = autoPlaceRandom(remainingTypes.slice(0, remaining), empty);
+        setWhitePieces(prev => ({ ...prev, ...auto }));
+      }
+      // Also ensure black is complete
+      if (Object.keys(blackPieces).length < 8) {
+        const remaining = 8 - Object.keys(blackPieces).length;
+        const occupied = new Set([...Object.keys(blackPawns), ...Object.keys(blackPieces)]);
+        const empty = getDeploymentSquares('b').filter(sq => !occupied.has(sq));
+        const allPieces = getStandardPieceSet();
+        const placed = Object.values(blackPieces);
+        const remainingTypes = allPieces.slice(placed.length);
+        const auto = autoPlaceRandom(remainingTypes.slice(0, remaining), empty);
+        setBlackPieces(prev => ({ ...prev, ...auto }));
+      }
       setPhaseTimer(0);
     } else if (phase === 'commander-draft') {
       setPhaseTimer(0);
@@ -529,13 +570,17 @@ const App: React.FC = () => {
       if (rank >= 0 && rank < 8) displayBoard[rank][file] = piece.toUpperCase();
     });
 
-    // Show black placements (partially visible during placement for drama)
-    if (phase === 'reveal') {
+    // Show black pawns during pawn-reveal phase
+    if (phase === 'pawn-reveal' || phase === 'piece-placement' || phase === 'piece-reveal') {
       Object.entries(blackPawns).forEach(([sq, piece]) => {
         const file = sq.charCodeAt(0) - 97;
         const rank = 8 - parseInt(sq[1]);
         if (rank >= 0 && rank < 8) displayBoard[rank][file] = piece.toLowerCase();
       });
+    }
+
+    // Show black pieces during piece-reveal phase
+    if (phase === 'piece-reveal') {
       Object.entries(blackPieces).forEach(([sq, piece]) => {
         const file = sq.charCodeAt(0) - 97;
         const rank = 8 - parseInt(sq[1]);
@@ -660,14 +705,16 @@ const App: React.FC = () => {
         </div>
 
         {/* Timer */}
-        {phase !== 'auto-play' && phase !== 'reveal' && phase !== 'round-result' && (
+        {phase !== 'auto-play' && phase !== 'round-result' && (
           <div className="mb-3">
             <PhaseTimer
               timeLeft={phaseTimer}
               maxTime={maxTimer}
               phaseName={
                 phase === 'pawn-placement' ? '🏁 Pawn Placement' :
+                phase === 'pawn-reveal' ? '🎭 Pawn Reveal' :
                 phase === 'piece-placement' ? '♟ Piece Placement' :
+                phase === 'piece-reveal' ? '🎭 Full Reveal' :
                 phase === 'commander-draft' ? '👑 Commander Draft' : ''
               }
             />
@@ -705,10 +752,19 @@ const App: React.FC = () => {
 
           {/* Center - Board + controls */}
           <div className="flex flex-col items-center gap-3 order-1 lg:order-2">
-            {/* Reveal message */}
-            {phase === 'reveal' && (
-              <div className="text-center py-2 px-4 bg-yellow-900/50 rounded-lg border border-yellow-600 animate-pulse">
-                <span className="text-yellow-300 font-bold">🎭 Positions Revealed!</span>
+            {/* Pawn Reveal message */}
+            {phase === 'pawn-reveal' && (
+              <div className="text-center py-3 px-6 bg-gradient-to-r from-yellow-900/70 to-orange-900/70 rounded-lg border-2 border-yellow-500 animate-pulse shadow-lg shadow-yellow-500/30">
+                <span className="text-yellow-200 font-bold text-lg">🎭 PAWNS REVEALED!</span>
+                <div className="text-yellow-300 text-sm mt-1">Both sides' pawn formations are now visible</div>
+              </div>
+            )}
+
+            {/* Piece Reveal message */}
+            {phase === 'piece-reveal' && (
+              <div className="text-center py-3 px-6 bg-gradient-to-r from-purple-900/70 to-pink-900/70 rounded-lg border-2 border-purple-500 animate-pulse shadow-lg shadow-purple-500/30">
+                <span className="text-purple-200 font-bold text-lg">🎭 FULL POSITION REVEALED!</span>
+                <div className="text-purple-300 text-sm mt-1">All pieces are now visible - Choose your Commander!</div>
               </div>
             )}
 
@@ -728,7 +784,10 @@ const App: React.FC = () => {
                 board={renderBoard()}
                 onSquareClick={handleSquareClick}
                 highlightZone={
-                  phase === 'pawn-placement' || phase === 'piece-placement' ? 'w' : undefined
+                  phase === 'pawn-placement' || phase === 'piece-placement' ? 'w' :
+                  phase === 'pawn-reveal' ? 'both' as any :
+                  phase === 'piece-reveal' ? 'both' as any :
+                  undefined
                 }
                 occupiedSquares={getOccupiedSquares()}
                 placementMode={phase === 'pawn-placement' || phase === 'piece-placement'}

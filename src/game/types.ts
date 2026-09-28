@@ -1,8 +1,9 @@
 export type GamePhase =
   | 'menu'
   | 'pawn-placement'
+  | 'pawn-reveal'
   | 'piece-placement'
-  | 'reveal'
+  | 'piece-reveal'
   | 'commander-draft'
   | 'auto-play'
   | 'round-result'
