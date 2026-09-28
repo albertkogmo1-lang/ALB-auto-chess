@@ -9,7 +9,7 @@ import PieceTray from './components/PieceTray';
 import RoundResultModal from './components/RoundResultModal';
 import { GameState, GamePhase, Commander, PieceType, Color, RoundResult, INITIAL_COMMANDERS } from './game/types';
 import { getDeploymentSquares, getPawnDeploymentSquares, getPieceDeploymentSquares, autoPlaceRandom, getStandardPieceSet, getPawnSet, buildFenFromPlacement } from './game/placement';
-import { getBestMove, getEvalForPosition } from './game/ai';
+import { getBestMove, getEvalForPosition, getStockfishEval } from './game/ai';
 
 const PAWN_TIME = 30;
 const PIECE_TIME = 50;
@@ -651,7 +651,8 @@ const App: React.FC = () => {
     let moves = 0;
     const localEvalHistory = [initialEval];
 
-    autoPlayRef.current = setInterval(() => {
+    // Use async function for Stockfish integration
+    const makeMove = async () => {
       if (chessGame.isGameOver() || moves >= MAX_MOVES) {
         if (autoPlayRef.current) clearInterval(autoPlayRef.current);
         endRound(chessGame, localEvalHistory, moves);
@@ -662,7 +663,7 @@ const App: React.FC = () => {
       const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
       const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
 
-      const move = getBestMove(chessGame, currentCommander);
+      const move = await getBestMove(chessGame, currentCommander);
       if (move) {
         chessGame.move(move);
         setLastMove({ from: move.from, to: move.to });
@@ -683,12 +684,16 @@ const App: React.FC = () => {
         }
         setBoard(newBoard);
 
-        // Update eval
-        const eval_ = getEvalForPosition(chessGame.fen());
+        // Update eval - try Stockfish first, fall back to custom
+        const eval_ = await getStockfishEval(chessGame.fen());
         setEvalBar(eval_);
         localEvalHistory.push(eval_);
         setEvalHistory([...localEvalHistory]);
       }
+    };
+
+    autoPlayRef.current = setInterval(() => {
+      makeMove();
     }, MOVE_INTERVAL);
   }, [whitePawns, whitePieces, blackPawns, blackPieces, selectedCommanderWhite, selectedCommanderBlack, whiteCommanders, blackCommanders]);
 
@@ -856,12 +861,17 @@ const App: React.FC = () => {
           <div className="bg-gray-800/50 rounded-xl p-4 mb-6 text-left text-sm text-gray-400 border border-gray-700">
             <p className="font-bold text-gray-200 mb-2">How to Play:</p>
             <ol className="list-decimal list-inside space-y-1">
-              <li><span className="text-blue-300">Place your pawns</span> (30s) in rows 1-4</li>
-              <li><span className="text-blue-300">Place your pieces</span> (50s) in remaining squares</li>
+              <li><span className="text-blue-300">Place your pawns</span> (30s) in rows 2-4</li>
+              <li><span className="text-blue-300">Place your pieces</span> (50s) anywhere in your zone</li>
               <li><span className="text-yellow-300">Pick a Commander</span> to pilot the round</li>
               <li><span className="text-purple-300">Watch the auto-play</span> unfold!</li>
               <li>5 rounds, different commanders each time</li>
             </ol>
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <p className="text-xs text-purple-300">
+                🧠 Powered by <span className="font-bold">Stockfish Engine</span> with personality-based commanders
+              </p>
+            </div>
           </div>
           <div className="flex flex-col gap-3">
             <button
@@ -1031,9 +1041,12 @@ const App: React.FC = () => {
 
             {/* Auto-play status */}
             {phase === 'auto-play' && (
-              <div className="text-center py-1 px-3 bg-green-900/50 rounded-lg border border-green-600">
+              <div className="text-center py-1 px-3 bg-green-900/50 rounded-lg border border-green-600 flex items-center justify-center gap-2">
                 <span className="text-green-300 text-sm font-bold">
                   ▶ Move {moveCount} • {game?.turn() === 'w' ? 'White' : 'Black'} to move
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-purple-800/50 border border-purple-500 rounded text-purple-300">
+                  🧠 Stockfish
                 </span>
               </div>
             )}

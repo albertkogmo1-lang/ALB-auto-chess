@@ -1,5 +1,6 @@
 import { Chess, Move } from 'chess.js';
 import { Commander } from './types';
+import { getStockfish, StockfishService } from './stockfish';
 
 const PIECE_VALUES: Record<string, number> = {
   p: 100,
@@ -160,7 +161,20 @@ function minimax(
   }
 }
 
-export function getBestMove(game: Chess, commander: Commander): Move | null {
+// Map ELO to Stockfish parameters
+function eloToStockfishParams(elo: number): { depth: number; skillLevel: number } {
+  // Stockfish skill level: 0-20 (20 = full strength)
+  // Search depth: affects how far it looks ahead
+  if (elo >= 2400) return { depth: 14, skillLevel: 20 };
+  if (elo >= 2200) return { depth: 12, skillLevel: 18 };
+  if (elo >= 2000) return { depth: 10, skillLevel: 14 };
+  if (elo >= 1900) return { depth: 8, skillLevel: 10 };
+  if (elo >= 1800) return { depth: 6, skillLevel: 6 };
+  return { depth: 4, skillLevel: 3 };
+}
+
+// Fallback custom engine
+function getBestMoveFallback(game: Chess, commander: Commander): Move | null {
   const moves = game.moves({ verbose: true });
   if (moves.length === 0) return null;
 
@@ -211,9 +225,96 @@ export function getBestMove(game: Chess, commander: Commander): Move | null {
   return bestMove || moves[0];
 }
 
+// Stockfish-powered move selection
+let stockfishInstance: StockfishService | null = null;
+let stockfishInitAttempted = false;
+
+async function initializeStockfish(): Promise<StockfishService | null> {
+  if (stockfishInitAttempted) return stockfishInstance;
+  
+  stockfishInitAttempted = true;
+  try {
+    stockfishInstance = await getStockfish();
+    console.log('✅ Stockfish initialized successfully');
+  } catch (error) {
+    console.warn('⚠️ Stockfish failed to initialize, using fallback engine');
+    stockfishInstance = null;
+  }
+  return stockfishInstance;
+}
+
+export async function getBestMove(game: Chess, commander: Commander): Promise<Move | null> {
+  const moves = game.moves({ verbose: true });
+  if (moves.length === 0) return null;
+
+  // Check for blunder - make a random move (applies to both engines)
+  if (Math.random() < commander.blunderRate) {
+    console.log(`💀 ${commander.name} blundered! (rate: ${(commander.blunderRate * 100).toFixed(0)}%)`);
+    const randomIndex = Math.floor(Math.random() * moves.length);
+    return moves[randomIndex];
+  }
+
+  // Try to use Stockfish
+  const stockfish = await initializeStockfish();
+  
+  if (stockfish) {
+    try {
+      const { depth, skillLevel } = eloToStockfishParams(commander.elo);
+      console.log(`🧠 ${commander.name} (ELO ${commander.elo}) thinking with Stockfish: depth=${depth}, skill=${skillLevel}`);
+      
+      const result = await stockfish.getBestMove(game.fen(), depth, skillLevel);
+      
+      if (result && result.bestMove) {
+        // Find the matching move in verbose format
+        const matchingMove = moves.find(m => {
+          // Convert UCI move (e.g., "e2e4") to our format
+          return m.from === result.bestMove.substring(0, 2) && 
+                 m.to === result.bestMove.substring(2, 4);
+        });
+        
+        if (matchingMove) {
+          console.log(`✅ ${commander.name} plays: ${matchingMove.san} (eval: ${result.evaluation}cp, depth: ${result.depth})`);
+          
+          // Apply aggression filter - if aggressive, prefer captures among top moves
+          if (commander.aggression > 0.7 && Math.random() < commander.aggression) {
+            const captureMoves = moves.filter(m => m.captured);
+            if (captureMoves.length > 0 && Math.random() < 0.3) {
+              const aggressiveMove = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+              console.log(`🔥 ${commander.name} chooses aggressive capture: ${aggressiveMove.san}`);
+              return aggressiveMove;
+            }
+          }
+          
+          return matchingMove;
+        }
+      }
+    } catch (error) {
+      console.warn('Stockfish move failed, using fallback:', error);
+    }
+  }
+
+  // Fallback to custom engine
+  console.log(`🎲 ${commander.name} using fallback engine (depth ${commander.depth})`);
+  return getBestMoveFallback(game, commander);
+}
+
 export function getEvalForPosition(fen: string): number {
   const game = new Chess(fen);
   const raw = evaluatePosition(game);
   // Normalize to -100 to 100 range
   return Math.max(-100, Math.min(100, raw / 30));
+}
+
+export async function getStockfishEval(fen: string): Promise<number> {
+  const stockfish = await initializeStockfish();
+  if (stockfish) {
+    try {
+      const eval_ = await stockfish.getEvaluation(fen, 12);
+      // Convert centipawns to our -100 to 100 scale
+      return Math.max(-100, Math.min(100, eval_ / 10));
+    } catch {
+      // Fall back to custom eval
+    }
+  }
+  return getEvalForPosition(fen);
 }
