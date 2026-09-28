@@ -8,6 +8,7 @@ interface BoardProps {
   occupiedSquares?: Set<string>;
   placementMode?: boolean;
   lastMove?: { from: string; to: string } | null;
+  selectedPiece?: PieceType | null;
 }
 
 const PIECE_UNICODE: Record<string, string> = {
@@ -17,7 +18,7 @@ const PIECE_UNICODE: Record<string, string> = {
   'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟',
 };
 
-const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occupiedSquares, placementMode, lastMove }) => {
+const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occupiedSquares, placementMode, lastMove, selectedPiece }) => {
   const getSquareColor = (rank: number, file: number): string => {
     const isLight = (rank + file) % 2 === 0;
     return isLight ? 'bg-amber-100' : 'bg-amber-700';
@@ -29,7 +30,19 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
     if (highlightZone === 'w' && actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/30';
     if (highlightZone === 'b' && actualRank >= 5 && actualRank <= 8) return 'ring-2 ring-inset ring-red-400/30';
     if (highlightZone === 'pawn' && actualRank >= 2 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/50';
-    if (highlightZone === 'piece' && ((actualRank >= 1 && actualRank <= 2) || (actualRank >= 7 && actualRank <= 8))) return 'ring-2 ring-inset ring-green-400/50';
+    if (highlightZone === 'piece') {
+      // King: rows 1-2 (white) or 7-8 (black)
+      // Other pieces: rows 1-4 (white) or 5-8 (black)
+      if (selectedPiece === 'k') {
+        if ((actualRank >= 1 && actualRank <= 2) || (actualRank >= 7 && actualRank <= 8)) {
+          return 'ring-2 ring-inset ring-yellow-400/50';
+        }
+      } else {
+        if ((actualRank >= 1 && actualRank <= 4) || (actualRank >= 5 && actualRank <= 8)) {
+          return 'ring-2 ring-inset ring-green-400/50';
+        }
+      }
+    }
     if (highlightZone === 'both') {
       if (actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/40';
       if (actualRank >= 5 && actualRank <= 8) return 'ring-2 ring-inset ring-red-400/40';
@@ -58,17 +71,25 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
             
             const canPlace = placementMode && highlightZone && !isOccupied;
             const actualRank = 8 - rank;
-            const inZone = highlightZone === 'w' 
-              ? (actualRank >= 1 && actualRank <= 4)
-              : highlightZone === 'b'
-              ? (actualRank >= 5 && actualRank <= 8)
-              : highlightZone === 'pawn'
-              ? (actualRank >= 2 && actualRank <= 4)
-              : highlightZone === 'piece'
-              ? ((actualRank >= 1 && actualRank <= 2) || (actualRank >= 7 && actualRank <= 8))
-              : highlightZone === 'both'
-              ? ((actualRank >= 1 && actualRank <= 4) || (actualRank >= 5 && actualRank <= 8))
-              : false;
+            let inZone = false;
+            
+            if (highlightZone === 'w') {
+              inZone = actualRank >= 1 && actualRank <= 4;
+            } else if (highlightZone === 'b') {
+              inZone = actualRank >= 5 && actualRank <= 8;
+            } else if (highlightZone === 'pawn') {
+              inZone = actualRank >= 2 && actualRank <= 4;
+            } else if (highlightZone === 'piece') {
+              // King: rows 1-2 (white) or 7-8 (black)
+              // Other pieces: rows 1-4 (white) or 5-8 (black)
+              if (selectedPiece === 'k') {
+                inZone = (actualRank >= 1 && actualRank <= 2) || (actualRank >= 7 && actualRank <= 8);
+              } else {
+                inZone = (actualRank >= 1 && actualRank <= 4) || (actualRank >= 5 && actualRank <= 8);
+              }
+            } else if (highlightZone === 'both') {
+              inZone = (actualRank >= 1 && actualRank <= 4) || (actualRank >= 5 && actualRank <= 8);
+            }
 
             return (
               <div
