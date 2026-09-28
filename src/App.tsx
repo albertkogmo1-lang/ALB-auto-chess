@@ -698,29 +698,52 @@ const App: React.FC = () => {
     // Start auto-play
     const movesRef = { count: 0 };
     const localEvalHistory = [initialEval];
+    let heartbeatCount = 0;
 
     console.log('🚀 [AUTO-PLAY] Starting auto-play setup');
     console.log('🚀 [AUTO-PLAY] Initial eval:', initialEval);
     console.log('🚀 [AUTO-PLAY] Game FEN:', chessGame.fen());
     console.log('🚀 [AUTO-PLAY] Game is game over?', chessGame.isGameOver());
+    console.log('🚀 [AUTO-PLAY] Legal moves:', chessGame.moves().length);
 
     // Synchronous move function
     const makeMove = () => {
-      console.log(`\n🎬 [AUTO-PLAY] === makeMove START ===`);
+      heartbeatCount++;
+      console.log(`\n💓 [AUTO-PLAY] Heartbeat #${heartbeatCount}`);
+      console.log(`🎬 [AUTO-PLAY] === makeMove START ===`);
       console.log(`🎬 [AUTO-PLAY] Move number: ${movesRef.count + 1}`);
       console.log(`🎬 [AUTO-PLAY] Current turn: ${chessGame.turn()}`);
       console.log(`🎬 [AUTO-PLAY] Game is game over? ${chessGame.isGameOver()}`);
       console.log(`🎬 [AUTO-PLAY] Move count: ${movesRef.count}, Max moves: ${MAX_MOVES}`);
+      console.log(`🎬 [AUTO-PLAY] Interval ID: ${autoPlayRef.current}`);
       
       try {
+        // Safety check: ensure game is still valid
+        if (!chessGame || typeof chessGame.isGameOver !== 'function') {
+          console.error('❌ [AUTO-PLAY] Invalid chess game object!');
+          return;
+        }
+
         if (chessGame.isGameOver() || movesRef.count >= MAX_MOVES) {
           console.log('🏁 [AUTO-PLAY] Game over or max moves reached');
           if (autoPlayRef.current) {
-            console.log('🏁 [AUTO-PLAY] Clearing interval');
+            console.log('🏁 [AUTO-PLAY] Clearing interval:', autoPlayRef.current);
             clearInterval(autoPlayRef.current);
+            autoPlayRef.current = null;
           }
           console.log('🏁 [AUTO-PLAY] Calling endRound');
           endRound(chessGame, localEvalHistory, movesRef.count);
+          return;
+        }
+
+        // Verify we have legal moves
+        const legalMoves = chessGame.moves();
+        console.log(`🎯 [AUTO-PLAY] Legal moves available: ${legalMoves.length}`);
+        
+        if (legalMoves.length === 0) {
+          console.error('❌ [AUTO-PLAY] No legal moves but game not over!');
+          console.error('❌ [AUTO-PLAY] FEN:', chessGame.fen());
+          console.error('❌ [AUTO-PLAY] In check?', chessGame.inCheck());
           return;
         }
 
@@ -731,11 +754,25 @@ const App: React.FC = () => {
         console.log(`🎯 [AUTO-PLAY] ${chessGame.turn() === 'w' ? 'White' : 'Black'} to move: ${currentCommander.name} (ELO: ${currentCommander.elo})`);
 
         console.log('🤖 [AUTO-PLAY] Calling getBestMove...');
+        const startTime = performance.now();
         const move = getBestMove(chessGame, currentCommander);
-        console.log('🤖 [AUTO-PLAY] getBestMove returned:', move ? move.san : 'null');
+        const endTime = performance.now();
+        console.log(`🤖 [AUTO-PLAY] getBestMove returned: ${move ? move.san : 'null'} (took ${(endTime - startTime).toFixed(2)}ms)`);
         
         if (move) {
           console.log(`✅ [AUTO-PLAY] Making move: ${move.san}`);
+          
+          // Verify move is legal before making it
+          const moveIsLegal = legalMoves.includes(move.san);
+          console.log(`✅ [AUTO-PLAY] Move is legal: ${moveIsLegal}`);
+          
+          if (!moveIsLegal) {
+            console.error('❌ [AUTO-PLAY] Attempted illegal move!');
+            console.error('❌ [AUTO-PLAY] Move:', move.san);
+            console.error('❌ [AUTO-PLAY] Legal moves:', legalMoves);
+            return;
+          }
+          
           chessGame.move(move);
           console.log(`✅ [AUTO-PLAY] Move applied to game`);
           
@@ -781,11 +818,14 @@ const App: React.FC = () => {
         } else {
           console.error('❌ [AUTO-PLAY] No move returned from getBestMove!');
           console.error('❌ [AUTO-PLAY] Game FEN:', chessGame.fen());
-          console.error('❌ [AUTO-PLAY] Legal moves:', chessGame.moves());
+          console.error('❌ [AUTO-PLAY] Legal moves:', legalMoves);
+          console.error('❌ [AUTO-PLAY] In check?', chessGame.inCheck());
         }
       } catch (error) {
         console.error('❌ [AUTO-PLAY] ERROR in makeMove:', error);
         console.error('❌ [AUTO-PLAY] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+        console.error('❌ [AUTO-PLAY] Game FEN:', chessGame.fen());
+        console.error('❌ [AUTO-PLAY] Move count:', movesRef.count);
       }
     };
 
@@ -795,15 +835,30 @@ const App: React.FC = () => {
       makeMove();
     }, MOVE_INTERVAL);
     console.log(`⏱️ [AUTO-PLAY] Interval created, ID: ${autoPlayRef.current}`);
+    console.log(`⏱️ [AUTO-PLAY] Auto-play is now running!`);
   }, [whitePawns, whitePieces, blackPawns, blackPieces, selectedCommanderWhite, selectedCommanderBlack, whiteCommanders, blackCommanders]);
 
   // Auto-play effect - starts when both commanders are selected
   useEffect(() => {
     if (phase === 'commander-draft' && selectedCommanderWhite && selectedCommanderBlack) {
+      console.log('🎮 [EFFECT] Auto-play effect triggered');
+      console.log('🎮 [EFFECT] White commander:', selectedCommanderWhite.name);
+      console.log('🎮 [EFFECT] Black commander:', selectedCommanderBlack.name);
+      
       const timeout = setTimeout(() => {
+        console.log('🎮 [EFFECT] Starting auto-play after 1.5s delay');
         startAutoPlay();
       }, 1500);
-      return () => clearTimeout(timeout);
+      
+      return () => {
+        console.log('🎮 [EFFECT] Cleanup: clearing timeout');
+        clearTimeout(timeout);
+        if (autoPlayRef.current) {
+          console.log('🎮 [EFFECT] Cleanup: clearing interval', autoPlayRef.current);
+          clearInterval(autoPlayRef.current);
+          autoPlayRef.current = null;
+        }
+      };
     }
   }, [phase, selectedCommanderWhite, selectedCommanderBlack, startAutoPlay]);
 
