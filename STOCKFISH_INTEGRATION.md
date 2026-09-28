@@ -14,12 +14,12 @@ Successfully integrated Stockfish chess engine into the ALB Auto-Chess game with
 
 ### 2. AI Module (`src/game/ai.ts`)
 - Hybrid approach: tries Stockfish first, falls back to custom minimax
-- Maps commander ELO to Stockfish parameters based on chess engine analysis standards:
-  - **2400 ELO** (International/Senior Master): depth 30, skill level 20 - Elite-level hyper-deep analysis for opening novelties and long-term calculation trees
-  - **2200 ELO** (Master): depth 22, skill level 18 - Subtle endgame conversions and intricate positional struggles
-  - **2000 ELO** (Expert): depth 18, skill level 14 - Reliable longer engine lines without overwhelming info-dump
-  - **1900 ELO** (Class A/Advanced): depth 15, skill level 10 - Typical calculation horizon at advanced level
-  - **1800 ELO** (Class A/Advanced): depth 13, skill level 6 - Tactical awareness and basic calculation
+- Maps commander ELO to Stockfish parameters optimized for browser-based play:
+  - **2400 ELO** (International/Senior Master): depth 11, skill level 20 - Strong tactical and strategic play
+  - **2200 ELO** (Master): depth 8, skill level 16 - Solid positional understanding
+  - **2000 ELO** (Expert): depth 6, skill level 12 - Good tactical vision
+  - **1900 ELO** (Class A/Advanced): depth 5, skill level 8 - Decent calculation ability
+  - **1800 ELO** (Class A/Advanced): depth 4, skill level 6 - Basic tactical awareness
 
 ### 3. Commander Personality System
 Each commander still has unique characteristics:
@@ -64,19 +64,20 @@ Each commander still has unique characteristics:
 - **CDN**: jsDelivr (fast, reliable)
 - **Worker**: Web Worker with blob URL (no external file needed)
 - **Protocol**: UCI (standard chess engine protocol)
-- **Timeout**: 30 seconds per move (accommodates deep searches up to depth 30)
-- **Move Interval**: 2 seconds minimum between moves (allows Stockfish time to calculate)
+- **Timeout**: 5 seconds per move (plenty for depth 4-11 searches)
+- **Move Interval**: 1 second between moves (optimized for fast, responsive gameplay)
 - **Fallback**: Always available if Stockfish fails
 
 ### Depth vs. Time Trade-offs
 
-Deeper searches provide stronger play but take more time:
-- **Depth 13-15** (1800-1900 ELO): ~1-2 seconds per move
-- **Depth 18** (2000 ELO): ~2-3 seconds per move
-- **Depth 22** (2200 ELO): ~3-4 seconds per move
-- **Depth 30** (2400 ELO): ~4-6+ seconds per move
+Optimized for fast browser-based play with practical search depths:
+- **Depth 4** (1800 ELO): ~0.1-0.3 seconds per move
+- **Depth 5** (1900 ELO): ~0.2-0.5 seconds per move
+- **Depth 6** (2000 ELO): ~0.3-0.8 seconds per move
+- **Depth 8** (2200 ELO): ~0.5-1.5 seconds per move
+- **Depth 11** (2400 ELO): ~1-3 seconds per move
 
-The 2-second move interval provides a good balance between game pace and search depth. For very deep searches (depth 30), Stockfish may not always complete within the interval, but will return the best move found so far.
+The 1-second move interval provides smooth gameplay while allowing Stockfish to complete most searches. The shallower depths ensure responsive play while still maintaining meaningful skill differences between commanders.
 
 ## Testing
 

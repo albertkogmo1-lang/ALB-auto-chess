@@ -173,14 +173,14 @@ export class StockfishService {
       this.engine.send(`position fen ${fen}`);
       this.engine.send(`go depth ${depth}`);
 
-      // Timeout fallback (increased for deeper searches)
+      // Timeout fallback (5 seconds is plenty for depth 4-11)
       setTimeout(() => {
         if (!resolved) {
           resolved = true;
           this.engine.setOnMessage(() => {});
           resolve(result);
         }
-      }, 30000);
+      }, 5000);
     });
   }
 

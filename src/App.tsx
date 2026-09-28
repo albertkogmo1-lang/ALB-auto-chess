@@ -14,7 +14,7 @@ import { getBestMove, getEvalForPosition, getStockfishEval } from './game/ai';
 const PAWN_TIME = 30;
 const PIECE_TIME = 50;
 const DRAFT_TIME = 12;
-const MOVE_INTERVAL = 2000; // ms between AI moves (increased for deeper Stockfish searches)
+const MOVE_INTERVAL = 1000; // ms between AI moves (optimized for depth 4-11 searches)
 const MAX_MOVES = 100;
 
 function getInitialBoard(): (string | null)[][] {
