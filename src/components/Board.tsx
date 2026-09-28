@@ -4,7 +4,7 @@ import { Color, PieceType } from '../game/types';
 interface BoardProps {
   board: (string | null)[][];
   onSquareClick?: (square: string) => void;
-  highlightZone?: Color | 'both';
+  highlightZone?: Color | 'both' | 'pawn';
   occupiedSquares?: Set<string>;
   placementMode?: boolean;
   lastMove?: { from: string; to: string } | null;
@@ -28,6 +28,7 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
     const actualRank = 8 - rank;
     if (highlightZone === 'w' && actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/30';
     if (highlightZone === 'b' && actualRank >= 5 && actualRank <= 8) return 'ring-2 ring-inset ring-red-400/30';
+    if (highlightZone === 'pawn' && actualRank >= 1 && actualRank <= 2) return 'ring-2 ring-inset ring-blue-400/50';
     if (highlightZone === 'both') {
       if (actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/40';
       if (actualRank >= 5 && actualRank <= 8) return 'ring-2 ring-inset ring-red-400/40';
@@ -58,7 +59,13 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
             const actualRank = 8 - rank;
             const inZone = highlightZone === 'w' 
               ? (actualRank >= 1 && actualRank <= 4)
-              : (actualRank >= 5 && actualRank <= 8);
+              : highlightZone === 'b'
+              ? (actualRank >= 5 && actualRank <= 8)
+              : highlightZone === 'pawn'
+              ? (actualRank >= 1 && actualRank <= 2)
+              : highlightZone === 'both'
+              ? ((actualRank >= 1 && actualRank <= 4) || (actualRank >= 5 && actualRank <= 8))
+              : false;
 
             return (
               <div

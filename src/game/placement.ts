@@ -12,6 +12,19 @@ export function getDeploymentSquares(color: Color): string[] {
   return squares;
 }
 
+export function getPawnDeploymentSquares(color: Color): string[] {
+  const squares: string[] = [];
+  // Pawns only in rows 1-2 (white) or 7-8 (black)
+  const startRow = color === 'w' ? 1 : 7;
+  const endRow = color === 'w' ? 2 : 8;
+  for (let row = startRow; row <= endRow; row++) {
+    for (let col = 0; col < 8; col++) {
+      squares.push(String.fromCharCode(97 + col) + row);
+    }
+  }
+  return squares;
+}
+
 export function getEmptySquares(
   deploymentZone: string[],
   occupiedSquares: Set<string>

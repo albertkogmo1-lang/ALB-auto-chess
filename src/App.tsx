@@ -8,7 +8,7 @@ import RoundTracker from './components/RoundTracker';
 import PieceTray from './components/PieceTray';
 import RoundResultModal from './components/RoundResultModal';
 import { GameState, GamePhase, Commander, PieceType, Color, RoundResult, INITIAL_COMMANDERS } from './game/types';
-import { getDeploymentSquares, autoPlaceRandom, getStandardPieceSet, getPawnSet, buildFenFromPlacement } from './game/placement';
+import { getDeploymentSquares, getPawnDeploymentSquares, autoPlaceRandom, getStandardPieceSet, getPawnSet, buildFenFromPlacement } from './game/placement';
 import { getBestMove, getEvalForPosition } from './game/ai';
 
 const PAWN_TIME = 30;
@@ -93,22 +93,26 @@ const App: React.FC = () => {
     console.log('Current white pawns:', whitePawns);
     console.log('Current black pawns:', blackPawns);
     
-    // Auto-place all white pieces
+    // Auto-place all white pieces in rows 1-4 (excluding pawn squares)
     const whitePieceTypes = getStandardPieceSet();
     const whiteDeployZone = getDeploymentSquares('w');
     const whiteOccupied = new Set(Object.keys(whitePawns));
     const whiteEmpty = whiteDeployZone.filter(sq => !whiteOccupied.has(sq));
-    console.log('White empty squares:', whiteEmpty.length);
+    console.log('White deployment zone (rows 1-4):', whiteDeployZone.length, 'squares');
+    console.log('White occupied by pawns:', whiteOccupied.size);
+    console.log('White empty for pieces:', whiteEmpty.length);
     const autoWhitePieces = autoPlaceRandom(whitePieceTypes, whiteEmpty);
     console.log('Auto white pieces:', autoWhitePieces);
     setWhitePieces(autoWhitePieces);
     
-    // Auto-place all black pieces
+    // Auto-place all black pieces in rows 5-8 (excluding pawn squares)
     const blackPieceTypes = getStandardPieceSet();
     const blackDeployZone = getDeploymentSquares('b');
     const blackOccupied = new Set(Object.keys(blackPawns));
     const blackEmpty = blackDeployZone.filter(sq => !blackOccupied.has(sq));
-    console.log('Black empty squares:', blackEmpty.length);
+    console.log('Black deployment zone (rows 5-8):', blackDeployZone.length, 'squares');
+    console.log('Black occupied by pawns:', blackOccupied.size);
+    console.log('Black empty for pieces:', blackEmpty.length);
     const autoBlackPieces = autoPlaceRandom(blackPieceTypes, blackEmpty);
     console.log('Auto black pieces:', autoBlackPieces);
     setBlackPieces(autoBlackPieces);
@@ -123,11 +127,11 @@ const App: React.FC = () => {
   const handlePhaseTimeout = useCallback(() => {
     switch (phase) {
       case 'pawn-placement':
-        // Auto-place remaining pawns
+        // Auto-place remaining pawns in restricted zones (rows 1-2 for white, 7-8 for black)
         const whitePawnTypes = getPawnSet();
         const blackPawnTypes = getPawnSet();
-        const whiteDeployZone = getDeploymentSquares('w');
-        const blackDeployZone = getDeploymentSquares('b');
+        const whitePawnZone = getPawnDeploymentSquares('w');
+        const blackPawnZone = getPawnDeploymentSquares('b');
         
         const whiteOccupied = new Set(Object.keys(whitePawns));
         const blackOccupied = new Set(Object.keys(blackPawns));
@@ -135,8 +139,8 @@ const App: React.FC = () => {
         const remainingWhitePawns = whitePawnTypes.filter((_, i) => i >= Object.keys(whitePawns).length);
         const remainingBlackPawns = blackPawnTypes.filter((_, i) => i >= Object.keys(blackPawns).length);
         
-        const whiteEmpty = whiteDeployZone.filter(sq => !whiteOccupied.has(sq));
-        const blackEmpty = blackDeployZone.filter(sq => !blackOccupied.has(sq));
+        const whiteEmpty = whitePawnZone.filter(sq => !whiteOccupied.has(sq));
+        const blackEmpty = blackPawnZone.filter(sq => !blackOccupied.has(sq));
         
         const autoWhitePawns = autoPlaceRandom(remainingWhitePawns, whiteEmpty);
         const autoBlackPawns = autoPlaceRandom(remainingBlackPawns, blackEmpty);
@@ -280,16 +284,21 @@ const App: React.FC = () => {
   };
 
   const startBotPlacement = () => {
-    // Auto-place all white pawns
+    console.log('=== START BOT PLACEMENT (PAWNS) ===');
+    // Auto-place all white pawns in rows 1-2 only
     const whitePawnTypes = getPawnSet();
-    const whiteDeployZone = getDeploymentSquares('w');
-    const autoWhitePawns = autoPlaceRandom(whitePawnTypes, whiteDeployZone);
+    const whitePawnZone = getPawnDeploymentSquares('w');
+    console.log('White pawn zone (rows 1-2):', whitePawnZone.length, 'squares');
+    const autoWhitePawns = autoPlaceRandom(whitePawnTypes, whitePawnZone);
+    console.log('Auto white pawns:', autoWhitePawns);
     setWhitePawns(autoWhitePawns);
     
-    // Auto-place all black pawns
+    // Auto-place all black pawns in rows 7-8 only
     const blackPawnTypes = getPawnSet();
-    const blackDeployZone = getDeploymentSquares('b');
-    const autoBlackPawns = autoPlaceRandom(blackPawnTypes, blackDeployZone);
+    const blackPawnZone = getPawnDeploymentSquares('b');
+    console.log('Black pawn zone (rows 7-8):', blackPawnZone.length, 'squares');
+    const autoBlackPawns = autoPlaceRandom(blackPawnTypes, blackPawnZone);
+    console.log('Auto black pawns:', autoBlackPawns);
     setBlackPawns(autoBlackPawns);
     
     // Show pawn reveal
@@ -333,10 +342,11 @@ const App: React.FC = () => {
 
   const handlePawnPlacement = (square: string) => {
     const actualRank = parseInt(square[1]);
-    const isWhiteZone = actualRank >= 1 && actualRank <= 4;
+    // Pawns only in rows 1-2 for white
+    const isWhitePawnZone = actualRank >= 1 && actualRank <= 2;
 
     // Player places white pawns
-    if (isWhiteZone && !whitePawns[square] && Object.keys(whitePawns).length < 8) {
+    if (isWhitePawnZone && !whitePawns[square] && Object.keys(whitePawns).length < 8) {
       setWhitePawns(prev => ({ ...prev, [square]: 'p' }));
     }
   };
@@ -347,9 +357,10 @@ const App: React.FC = () => {
     
     const interval = setInterval(() => {
       if (phase === 'pawn-placement' && Object.keys(blackPawns).length < 8) {
-        const blackZone = getDeploymentSquares('b');
+        // Pawns only in rows 7-8 for black
+        const blackPawnZone = getPawnDeploymentSquares('b');
         const occupied = new Set(Object.keys(blackPawns));
-        const empty = blackZone.filter(sq => !occupied.has(sq));
+        const empty = blackPawnZone.filter(sq => !occupied.has(sq));
         if (empty.length > 0) {
           const randomSquare = empty[Math.floor(Math.random() * empty.length)];
           setBlackPawns(prev => ({ ...prev, [randomSquare]: 'p' }));
@@ -373,19 +384,19 @@ const App: React.FC = () => {
 
   const handleReady = () => {
     if (phase === 'pawn-placement') {
-      // Auto-fill remaining white pawns
+      // Auto-fill remaining white pawns in rows 1-2 only
       if (Object.keys(whitePawns).length < 8) {
         const remaining = 8 - Object.keys(whitePawns).length;
         const occupied = new Set(Object.keys(whitePawns));
-        const empty = getDeploymentSquares('w').filter(sq => !occupied.has(sq));
+        const empty = getPawnDeploymentSquares('w').filter(sq => !occupied.has(sq));
         const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
         setWhitePawns(prev => ({ ...prev, ...auto }));
       }
-      // Also ensure black is complete
+      // Also ensure black is complete in rows 7-8 only
       if (Object.keys(blackPawns).length < 8) {
         const remaining = 8 - Object.keys(blackPawns).length;
         const occupied = new Set(Object.keys(blackPawns));
-        const empty = getDeploymentSquares('b').filter(sq => !occupied.has(sq));
+        const empty = getPawnDeploymentSquares('b').filter(sq => !occupied.has(sq));
         const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
         setBlackPawns(prev => ({ ...prev, ...auto }));
       }
@@ -974,7 +985,8 @@ const App: React.FC = () => {
                 board={renderBoard()}
                 onSquareClick={handleSquareClick}
                 highlightZone={
-                  phase === 'pawn-placement' || phase === 'piece-placement' ? 'w' :
+                  phase === 'pawn-placement' ? 'pawn' as any :
+                  phase === 'piece-placement' ? 'w' :
                   phase === 'pawn-reveal' ? 'both' as any :
                   phase === 'piece-reveal' ? 'both' as any :
                   undefined
