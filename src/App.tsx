@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Chess } from 'chess.js';
 import Board from './components/Board';
 import EvalBar from './components/EvalBar';
-import CommanderPanel from './components/CommanderPanel';
 import PhaseTimer from './components/PhaseTimer';
 import RoundTracker from './components/RoundTracker';
 import PieceTray from './components/PieceTray';
@@ -13,9 +12,9 @@ import { getBestMove, getEvalForPosition } from './game/engines';
 
 const PAWN_TIME = 30;
 const PIECE_TIME = 50;
-const DRAFT_TIME = 12;
-const MOVE_INTERVAL = 1000; // ms between AI moves (optimized for depth 4-11 searches)
+const MOVE_INTERVAL = 2500; // ms between AI moves - more time for animation and thinking
 const MAX_MOVES = 100;
+const MAX_DEPTH = 6; // Always use max depth for all bots
 
 function getInitialBoard(): (string | null)[][] {
   return Array(8).fill(null).map(() => Array(8).fill(null));
@@ -71,10 +70,6 @@ const App: React.FC = () => {
   const [blackPieces, setBlackPieces] = useState<Record<string, string>>({});
   const [selectedPiece, setSelectedPiece] = useState<PieceType | null>(null);
 
-  // Commander draft
-  const [selectedCommanderWhite, setSelectedCommanderWhite] = useState<Commander | null>(null);
-  const [selectedCommanderBlack, setSelectedCommanderBlack] = useState<Commander | null>(null);
-
   // Auto-play state
   const [game, setGame] = useState<Chess | null>(null);
   const [board, setBoard] = useState<(string | null)[][]>(getInitialBoard());
@@ -83,6 +78,20 @@ const App: React.FC = () => {
   const [moveCount, setMoveCount] = useState(0);
   const autoPlayRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startAutoPlayRef = useRef<() => void>(() => {});
+
+  // Default commander with max depth for auto-play
+  const defaultCommander: Commander = {
+    id: 'default',
+    name: 'Engine',
+    title: 'Max Depth',
+    description: 'Always uses maximum search depth',
+    depth: MAX_DEPTH,
+    blunderRate: 0,
+    aggression: 0.5,
+    elo: 2600,
+    emoji: '🤖',
+    used: false,
+  };
 
   // Round result
   const [showRoundResult, setShowRoundResult] = useState(false);
@@ -215,53 +224,13 @@ const App: React.FC = () => {
 
       case 'piece-reveal':
         // After piece reveal, move to commander draft
-        if (gameMode === 'bot-vs-bot') {
-          // In bot-vs-bot mode, auto-select commanders and start playing
-          const availableWhite = whiteCommanders.filter(c => !c.used);
-          const availableBlack = blackCommanders.filter(c => !c.used);
-          
-          if (availableWhite.length > 0) {
-            const whiteCmd = availableWhite[Math.floor(Math.random() * availableWhite.length)];
-            setSelectedCommanderWhite(whiteCmd);
-          }
-          if (availableBlack.length > 0) {
-            const blackCmd = availableBlack[Math.floor(Math.random() * availableBlack.length)];
-            setSelectedCommanderBlack(blackCmd);
-          }
-          
-          // Start auto-play after a brief delay to show the commanders
-          setTimeout(() => {
-            setPhase('commander-draft');
-            setPhaseTimer(2);
-            setMaxTimer(2);
-          }, 1000);
-        } else {
-          setPhase('commander-draft');
-          setPhaseTimer(DRAFT_TIME);
-          setMaxTimer(DRAFT_TIME);
-        }
-        break;
-
-      case 'commander-draft':
-        // Auto-select commanders if not already selected
-        if (!selectedCommanderWhite) {
-          const available = whiteCommanders.filter(c => !c.used);
-          if (available.length > 0) {
-            const random = available[Math.floor(Math.random() * available.length)];
-            setSelectedCommanderWhite(random);
-          }
-        }
-        if (!selectedCommanderBlack) {
-          const available = blackCommanders.filter(c => !c.used);
-          if (available.length > 0) {
-            const random = available[Math.floor(Math.random() * available.length)];
-            setSelectedCommanderBlack(random);
-          }
-        }
-        // Don't call startAutoPlay here - let the useEffect handle it
+        // Start auto-play directly after piece reveal
+        setTimeout(() => {
+          startAutoPlay();
+        }, 1500);
         break;
     }
-  }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, whiteCommanders, blackCommanders, selectedCommanderWhite, selectedCommanderBlack, gameMode, startBotPiecePlacement]);
+  }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, whiteCommanders, blackCommanders, gameMode, startBotPiecePlacement]);
 
   // Timer effect
   useEffect(() => {
@@ -332,8 +301,6 @@ const App: React.FC = () => {
     setWhitePieces({});
     setBlackPieces({});
     setSelectedPiece(null);
-    setSelectedCommanderWhite(null);
-    setSelectedCommanderBlack(null);
     setGame(null);
     setBoard(getInitialBoard());
     setLastMove(null);
@@ -506,8 +473,6 @@ const App: React.FC = () => {
         setBlackPieces(blackPiecesCopy);
       }
       setPhaseTimer(0);
-    } else if (phase === 'commander-draft') {
-      setPhaseTimer(0);
     }
   };
 
@@ -532,22 +497,6 @@ const App: React.FC = () => {
       if (Object.keys(whitePieces).length + 1 >= 8) {
         setSelectedPiece(null);
       }
-    }
-  };
-
-  const handleCommanderSelect = (commander: Commander, color: Color) => {
-    if (color === 'w') {
-      setSelectedCommanderWhite(commander);
-      // Auto-select black commander after a short delay (simulating opponent thinking)
-      setTimeout(() => {
-        const available = blackCommanders.filter(c => !c.used);
-        if (available.length > 0) {
-          // AI picks a commander somewhat strategically
-          const pick = available[Math.floor(Math.random() * available.length)];
-          setSelectedCommanderBlack(pick);
-        }
-        // The useEffect will handle starting auto-play when both commanders are set
-      }, 1000);
     }
   };
 
@@ -709,10 +658,8 @@ const App: React.FC = () => {
           return;
         }
 
-        const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
-        const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
-        const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
-        console.log('🎯 Current commander:', currentCommander.name, 'ELO:', currentCommander.elo);
+        const currentCommander = defaultCommander;
+        console.log('🎯 Current commander:', currentCommander.name, 'Depth:', currentCommander.depth);
 
         const move = getBestMove(chessGame, currentCommander);
         console.log('🤖 getBestMove returned:', move?.san || 'null');
@@ -756,29 +703,12 @@ const App: React.FC = () => {
       makeMove();
     }, MOVE_INTERVAL);
     console.log('⏱️ Auto-play interval created, ID:', autoPlayRef.current, 'interval:', MOVE_INTERVAL, 'ms');
-  }, [whitePawns, whitePieces, blackPawns, blackPieces, selectedCommanderWhite, selectedCommanderBlack, whiteCommanders, blackCommanders]);
+  }, [whitePawns, whitePieces, blackPawns, blackPieces, whiteCommanders, blackCommanders]);
 
   // Keep ref in sync with startAutoPlay
   useEffect(() => {
     startAutoPlayRef.current = startAutoPlay;
   }, [startAutoPlay]);
-
-  // Auto-play effect - starts when both commanders are selected
-  useEffect(() => {
-    console.log('🎯 Auto-play useEffect triggered', { phase, white: selectedCommanderWhite?.name, black: selectedCommanderBlack?.name });
-    if (phase === 'commander-draft' && selectedCommanderWhite && selectedCommanderBlack) {
-      console.log('✅ Both commanders selected, starting auto-play in 1.5s');
-      const timeout = setTimeout(() => {
-        console.log('⏰ Timeout fired, calling startAutoPlay()');
-        startAutoPlayRef.current();
-      }, 1500);
-      
-      return () => {
-        console.log('🧹 Cleaning up timeout');
-        clearTimeout(timeout);
-      };
-    }
-  }, [phase, selectedCommanderWhite, selectedCommanderBlack]);
 
   const endRound = (chessGame: Chess, history: number[], moves: number) => {
     let winner: Color | 'draw' = 'draw';
@@ -802,24 +732,17 @@ const App: React.FC = () => {
       setBlackScore(prev => prev + 0.5);
     }
 
-    const whiteCmd = selectedCommanderWhite || whiteCommanders[0];
-    const blackCmd = selectedCommanderBlack || blackCommanders[0];
-
     const result: RoundResult = {
       round: currentRound,
       winner,
-      whiteCommander: whiteCmd,
-      blackCommander: blackCmd,
+      whiteCommander: defaultCommander,
+      blackCommander: defaultCommander,
       moves,
       evalHistory: history,
     };
 
     setCurrentRoundResult(result);
     setRoundResults(prev => [...prev, result]);
-    
-    // Mark commanders as used
-    setWhiteCommanders(prev => prev.map(c => c.id === whiteCmd.id ? { ...c, used: true } : c));
-    setBlackCommanders(prev => prev.map(c => c.id === blackCmd.id ? { ...c, used: true } : c));
 
     setPhase('round-result');
     setShowRoundResult(true);
@@ -1065,34 +988,8 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Commander reveal banner */}
-        {(phase === 'auto-play' || phase === 'round-result') && selectedCommanderWhite && selectedCommanderBlack && (
-          <div className="mb-3 bg-gray-800/80 rounded-lg p-2 border border-gray-600 flex items-center justify-center gap-4">
-            <div className="text-center">
-              <span className="text-xl">{selectedCommanderWhite.emoji}</span>
-              <span className="text-xs text-blue-300 ml-1 font-bold">{selectedCommanderWhite.name}</span>
-            </div>
-            <span className="text-yellow-400 font-bold text-sm">⚔️ VS ⚔️</span>
-            <div className="text-center">
-              <span className="text-xs text-red-300 mr-1 font-bold">{selectedCommanderBlack.name}</span>
-              <span className="text-xl">{selectedCommanderBlack.emoji}</span>
-            </div>
-          </div>
-        )}
-
         {/* Main layout */}
         <div className="flex flex-col lg:flex-row gap-3 items-start justify-center">
-          {/* Left panel - White commanders */}
-          <div className="w-full lg:w-56 order-2 lg:order-1">
-            <CommanderPanel
-              commanders={whiteCommanders}
-              color="w"
-              selectedCommander={selectedCommanderWhite}
-              onSelect={(cmd) => handleCommanderSelect(cmd, 'w')}
-              disabled={phase !== 'commander-draft'}
-              isDrafting={phase === 'commander-draft'}
-            />
-          </div>
 
           {/* Center - Board + controls */}
           <div className="flex flex-col items-center gap-3 order-1 lg:order-2">
@@ -1166,17 +1063,6 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Ready button for commander draft */}
-            {phase === 'commander-draft' && selectedCommanderWhite && (
-              <button
-                onClick={handleReady}
-                className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-white text-sm font-bold
-                  transition-all duration-200 shadow-lg hover:scale-105"
-              >
-                ✓ Confirm Pick
-              </button>
-            )}
-
             {/* Move log during auto-play */}
             {phase === 'auto-play' && moveLog.length > 0 && (
               <div className="w-[400px] max-h-20 overflow-y-auto bg-gray-800/80 rounded-lg p-2 border border-gray-600">
@@ -1191,17 +1077,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Right panel - Black commanders */}
-          <div className="w-full lg:w-56 order-3">
-            <CommanderPanel
-              commanders={blackCommanders}
-              color="b"
-              selectedCommander={selectedCommanderBlack}
-              disabled={true}
-              isDrafting={false}
-            />
           </div>
         </div>
       </div>

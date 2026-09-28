@@ -4,7 +4,6 @@ export type GamePhase =
   | 'pawn-reveal'
   | 'piece-placement'
   | 'piece-reveal'
-  | 'commander-draft'
   | 'auto-play'
   | 'round-result'
   | 'match-result';

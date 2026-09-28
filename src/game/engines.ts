@@ -262,15 +262,8 @@ function minimax(
   }
 }
 
-// Map ELO to search parameters
-function eloToSearchDepth(elo: number): number {
-  if (elo >= 2600) return 5;
-  if (elo >= 2400) return 4;
-  if (elo >= 2200) return 4;
-  if (elo >= 2000) return 3;
-  if (elo >= 1800) return 3;
-  return 2;
-}
+// Always use max depth for all bots
+const MAX_DEPTH = 6;
 
 // Get best move for a specific commander (Engine 2 or 3)
 export function getBestMove(game: Chess, commander: Commander): Move | null {
@@ -289,7 +282,7 @@ export function getBestMove(game: Chess, commander: Commander): Move | null {
     return moves[randomIndex];
   }
 
-  const depth = eloToSearchDepth(commander.elo);
+  const depth = MAX_DEPTH;
   const isMaximizing = game.turn() === 'w';
   let bestMove: Move | null = null;
   let bestEval = isMaximizing ? -Infinity : Infinity;
