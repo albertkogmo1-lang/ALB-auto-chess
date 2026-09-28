@@ -551,6 +551,7 @@ const App: React.FC = () => {
   };
 
   const startAutoPlay = useCallback(() => {
+    console.log('🚀 startAutoPlay() called');
     console.log('=== START AUTO PLAY ===');
     console.log('Current phase:', phase);
     console.log('White pawns:', whitePawns);
@@ -698,7 +699,9 @@ const App: React.FC = () => {
     console.log('🚀 Starting auto-play');
 
     const makeMove = () => {
+      console.log('💓 makeMove() called, move count:', movesRef.count);
       if (chessGame.isGameOver() || movesRef.count >= MAX_MOVES) {
+        console.log('🏁 Game over or max moves reached');
         if (autoPlayRef.current) clearInterval(autoPlayRef.current);
         endRound(chessGame, localEvalHistory, movesRef.count);
         return;
@@ -707,8 +710,10 @@ const App: React.FC = () => {
       const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
       const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
       const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
+      console.log('🎯 Current commander:', currentCommander.name, 'ELO:', currentCommander.elo);
 
       const move = getBestMove(chessGame, currentCommander);
+      console.log('🤖 getBestMove returned:', move?.san || 'null');
       if (move) {
         chessGame.move(move);
         setLastMove({ from: move.from, to: move.to });
@@ -738,16 +743,23 @@ const App: React.FC = () => {
     };
 
     autoPlayRef.current = setInterval(makeMove, MOVE_INTERVAL);
+    console.log('⏱️ Auto-play interval created, ID:', autoPlayRef.current, 'interval:', MOVE_INTERVAL, 'ms');
   }, [whitePawns, whitePieces, blackPawns, blackPieces, selectedCommanderWhite, selectedCommanderBlack, whiteCommanders, blackCommanders]);
 
   // Auto-play effect - starts when both commanders are selected
   useEffect(() => {
+    console.log('🎯 Auto-play useEffect triggered', { phase, white: selectedCommanderWhite?.name, black: selectedCommanderBlack?.name });
     if (phase === 'commander-draft' && selectedCommanderWhite && selectedCommanderBlack) {
+      console.log('✅ Both commanders selected, starting auto-play in 1.5s');
       const timeout = setTimeout(() => {
+        console.log('⏰ Timeout fired, calling startAutoPlay()');
         startAutoPlay();
       }, 1500);
       
-      return () => clearTimeout(timeout);
+      return () => {
+        console.log('🧹 Cleaning up timeout');
+        clearTimeout(timeout);
+      };
     }
   }, [phase, selectedCommanderWhite, selectedCommanderBlack, startAutoPlay]);
 

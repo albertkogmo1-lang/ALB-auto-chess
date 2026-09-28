@@ -266,11 +266,17 @@ function eloToSearchDepth(elo: number): number {
 
 // Get best move for a specific commander (Engine 2 or 3)
 export function getBestMove(game: Chess, commander: Commander): Move | null {
+  console.log('🤖 getBestMove called for', commander.name, 'ELO:', commander.elo);
   const moves = game.moves({ verbose: true });
-  if (moves.length === 0) return null;
+  console.log('📊 Legal moves:', moves.length);
+  if (moves.length === 0) {
+    console.log('⚠️ No legal moves available');
+    return null;
+  }
 
   // Check for blunder
   if (Math.random() < commander.blunderRate) {
+    console.log('💀 Blunder! Making random move');
     const randomIndex = Math.floor(Math.random() * moves.length);
     return moves[randomIndex];
   }
@@ -312,5 +318,7 @@ export function getBestMove(game: Chess, commander: Commander): Move | null {
     }
   }
 
-  return bestMove || moves[0];
+  const finalMove = bestMove || moves[0];
+  console.log('✅ getBestMove returning:', finalMove.san);
+  return finalMove;
 }
