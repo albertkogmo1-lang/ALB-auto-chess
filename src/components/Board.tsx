@@ -55,8 +55,8 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
   };
 
   return (
-    <div className="inline-block border-2 border-amber-900 rounded shadow-2xl">
-      <div className="grid grid-cols-8" style={{ width: '400px', height: '400px' }}>
+    <div className="inline-block border-2 border-amber-900 rounded shadow-2xl" style={{ width: '404px', height: '404px' }}>
+      <div className="grid grid-cols-8 grid-rows-8" style={{ width: '400px', height: '400px', gridTemplateColumns: 'repeat(8, 50px)', gridTemplateRows: 'repeat(8, 50px)' }}>
         {Array.from({ length: 8 }, (_, rank) =>
           Array.from({ length: 8 }, (_, file) => {
             const square = getSquareName(rank, file);
@@ -102,6 +102,7 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
                   ${canPlace && inZone ? 'hover:bg-green-300/50 hover:ring-2 hover:ring-green-500' : ''}
                   transition-colors duration-100
                 `}
+                style={{ width: '50px', height: '50px', minWidth: '50px', minHeight: '50px' }}
                 onClick={() => onSquareClick?.(square)}
               >
                 {piece && (
