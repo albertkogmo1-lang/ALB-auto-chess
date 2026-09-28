@@ -258,7 +258,12 @@ async function initializeStockfish(): Promise<StockfishService | null> {
 
 export async function getBestMove(game: Chess, commander: Commander): Promise<Move | null> {
   const moves = game.moves({ verbose: true });
-  if (moves.length === 0) return null;
+  if (moves.length === 0) {
+    console.log('⚠️ No legal moves available');
+    return null;
+  }
+
+  console.log(`🎯 ${commander.name} (${commander.elo} ELO) has ${moves.length} legal moves`);
 
   // Check for blunder - make a random move (applies to both engines)
   if (Math.random() < commander.blunderRate) {
@@ -299,16 +304,26 @@ export async function getBestMove(game: Chess, commander: Commander): Promise<Mo
           }
           
           return matchingMove;
+        } else {
+          console.warn('⚠️ Stockfish move not found in legal moves:', result.bestMove);
         }
+      } else {
+        console.warn('⚠️ Stockfish returned no result');
       }
     } catch (error) {
-      console.warn('Stockfish move failed, using fallback:', error);
+      console.warn('❌ Stockfish move failed:', error);
     }
+  } else {
+    console.log('⚠️ Stockfish not available');
   }
 
   // Fallback to custom engine
   console.log(`🎲 ${commander.name} using fallback engine (depth ${commander.depth})`);
-  return getBestMoveFallback(game, commander);
+  const fallbackMove = getBestMoveFallback(game, commander);
+  if (fallbackMove) {
+    console.log(`✅ ${commander.name} plays (fallback): ${fallbackMove.san}`);
+  }
+  return fallbackMove;
 }
 
 export function getEvalForPosition(fen: string): number {
@@ -323,11 +338,17 @@ export async function getStockfishEval(fen: string): Promise<number> {
   if (stockfish) {
     try {
       const eval_ = await stockfish.getEvaluation(fen, 12);
+      console.log(`📊 Stockfish eval: ${eval_}cp`);
       // Convert centipawns to our -100 to 100 scale
-      return Math.max(-100, Math.min(100, eval_ / 10));
-    } catch {
+      const normalized = Math.max(-100, Math.min(100, eval_ / 10));
+      console.log(`📊 Normalized eval: ${normalized}`);
+      return normalized;
+    } catch (error) {
+      console.warn('⚠️ Stockfish eval failed:', error);
       // Fall back to custom eval
     }
   }
-  return getEvalForPosition(fen);
+  const customEval = getEvalForPosition(fen);
+  console.log(`📊 Custom eval: ${customEval}`);
+  return customEval;
 }

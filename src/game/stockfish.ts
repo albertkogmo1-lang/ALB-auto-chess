@@ -12,6 +12,8 @@ class StockfishEngine {
   async initialize(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
+        console.log('🔄 Initializing Stockfish from CDN...');
+        
         // Create worker code that loads Stockfish from CDN
         const workerCode = `
           importScripts('${STOCKFISH_CDN_URL}');
@@ -21,11 +23,14 @@ class StockfishEngine {
         const workerUrl = URL.createObjectURL(blob);
         
         this.worker = new Worker(workerUrl);
+        console.log('✅ Worker created');
         
         this.worker.onmessage = (e) => {
           const msg = typeof e.data === 'string' ? e.data : '';
+          console.log('📨 Stockfish message:', msg.substring(0, 50));
           
           if (msg.includes('uciok')) {
+            console.log('✅ Stockfish ready (uciok received)');
             this.ready = true;
             resolve(true);
           }
@@ -36,25 +41,26 @@ class StockfishEngine {
         };
         
         this.worker.onerror = (e) => {
-          console.warn('Stockfish worker error, using fallback:', e);
+          console.error('❌ Stockfish worker error:', e);
           this.useFallback = true;
           resolve(false);
         };
         
         // Initialize UCI
+        console.log('📤 Sending UCI command');
         this.send('uci');
         
         // Timeout fallback
         setTimeout(() => {
           if (!this.ready) {
-            console.warn('Stockfish initialization timeout, using fallback');
+            console.warn('⏱️ Stockfish initialization timeout (5s), using fallback');
             this.useFallback = true;
             resolve(false);
           }
         }, 5000);
         
       } catch (error) {
-        console.warn('Failed to initialize Stockfish:', error);
+        console.error('❌ Failed to initialize Stockfish:', error);
         this.useFallback = true;
         resolve(false);
       }

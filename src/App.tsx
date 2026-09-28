@@ -653,7 +653,10 @@ const App: React.FC = () => {
 
     // Use async function for Stockfish integration
     const makeMove = async () => {
+      console.log(`🎬 makeMove called - Move ${moves + 1}, Turn: ${chessGame.turn()}`);
+      
       if (chessGame.isGameOver() || moves >= MAX_MOVES) {
+        console.log('🏁 Game over or max moves reached');
         if (autoPlayRef.current) clearInterval(autoPlayRef.current);
         endRound(chessGame, localEvalHistory, moves);
         return;
@@ -662,9 +665,11 @@ const App: React.FC = () => {
       const whiteCmd = selectedCommanderWhite || whiteCommanders.find(c => !c.used) || whiteCommanders[0];
       const blackCmd = selectedCommanderBlack || blackCommanders.find(c => !c.used) || blackCommanders[0];
       const currentCommander = chessGame.turn() === 'w' ? whiteCmd : blackCmd;
+      console.log(`🎯 ${chessGame.turn() === 'w' ? 'White' : 'Black'} to move: ${currentCommander.name}`);
 
       const move = await getBestMove(chessGame, currentCommander);
       if (move) {
+        console.log(`✅ Move made: ${move.san}`);
         chessGame.move(move);
         setLastMove({ from: move.from, to: move.to });
         setMoveLog(prev => [...prev, move.san]);
@@ -686,13 +691,18 @@ const App: React.FC = () => {
 
         // Update eval - try Stockfish first, fall back to custom
         const eval_ = await getStockfishEval(chessGame.fen());
+        console.log(`📊 Eval after move: ${eval_}`);
         setEvalBar(eval_);
         localEvalHistory.push(eval_);
         setEvalHistory([...localEvalHistory]);
+      } else {
+        console.error('❌ No move returned from getBestMove!');
       }
     };
 
+    console.log(`⏱️ Starting auto-play interval: ${MOVE_INTERVAL}ms`);
     autoPlayRef.current = setInterval(() => {
+      console.log('⏰ Interval triggered');
       makeMove();
     }, MOVE_INTERVAL);
   }, [whitePawns, whitePieces, blackPawns, blackPieces, selectedCommanderWhite, selectedCommanderBlack, whiteCommanders, blackCommanders]);
