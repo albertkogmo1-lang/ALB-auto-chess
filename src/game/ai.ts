@@ -167,17 +167,17 @@ function eloToStockfishParams(elo: number): { depth: number; skillLevel: number 
   // Stockfish skill level: 0-20 (20 = full strength)
   // Search depth: affects how far it looks ahead
   
-  // 2400 ELO (International/Senior Master): Depth 10-11
-  if (elo >= 2400) return { depth: 11, skillLevel: 20 };
+  // 2600 ELO (Super GM): Depth 14
+  if (elo >= 2600) return { depth: 14, skillLevel: 20 };
+  
+  // 2400 ELO (International/Senior Master): Depth 11
+  if (elo >= 2400) return { depth: 11, skillLevel: 18 };
   
   // 2200 ELO (Master): Depth 8
-  if (elo >= 2200) return { depth: 8, skillLevel: 16 };
+  if (elo >= 2200) return { depth: 8, skillLevel: 14 };
   
   // 2000 ELO (Expert): Depth 6
-  if (elo >= 2000) return { depth: 6, skillLevel: 12 };
-  
-  // 1900 ELO (Class A/Advanced): Depth 5
-  if (elo >= 1900) return { depth: 5, skillLevel: 8 };
+  if (elo >= 2000) return { depth: 6, skillLevel: 10 };
   
   // 1800 ELO (Class A/Advanced): Depth 4
   if (elo >= 1800) return { depth: 4, skillLevel: 6 };
