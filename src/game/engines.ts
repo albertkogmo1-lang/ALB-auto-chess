@@ -1,5 +1,4 @@
 import { Chess, Move } from 'chess.js';
-import { Commander } from './types';
 
 // ============================================================================
 // ENGINE 1: EVALUATION ENGINE (for eval bar)
@@ -16,18 +15,12 @@ const PIECE_VALUES_SIMPLE: Record<string, number> = {
 };
 
 export function getEvalForPosition(fen: string): number {
-  console.log('📊 getEvalForPosition called with FEN:', fen.substring(0, 50) + '...');
   const game = new Chess(fen);
   
   if (game.isCheckmate()) {
-    const eval_ = game.turn() === 'w' ? -100 : 100;
-    console.log('📊 Checkmate detected, eval:', eval_);
-    return eval_;
+    return game.turn() === 'w' ? -100 : 100;
   }
-  if (game.isDraw()) {
-    console.log('📊 Draw detected, eval: 0');
-    return 0;
-  }
+  if (game.isDraw()) return 0;
   
   // Simple material count only
   const board = game.board();
@@ -45,13 +38,11 @@ export function getEvalForPosition(fen: string): number {
   
   // Normalize to -100 to 100 scale
   const normalized = materialScore / 4;
-  const finalEval = Math.max(-100, Math.min(100, normalized));
-  console.log('📊 Material score:', materialScore, 'Normalized eval:', finalEval);
-  return finalEval;
+  return Math.max(-100, Math.min(100, normalized));
 }
 
 // ============================================================================
-// ENGINE 2 & 3: MOVE-MAKING ENGINES (for bots)
+// ENGINE 2: MOVE-MAKING ENGINE
 // Enhanced evaluation with positional understanding
 // ============================================================================
 
@@ -262,25 +253,13 @@ function minimax(
   }
 }
 
-// Always use max depth for all bots
+// Always use max depth
 const MAX_DEPTH = 6;
 
-// Get best move for a specific commander (Engine 2 or 3)
-export function getBestMove(game: Chess, commander: Commander): Move | null {
-  console.log('🤖 getBestMove called for', commander.name, 'ELO:', commander.elo);
+// Get best move - always uses max depth
+export function getBestMove(game: Chess): Move | null {
   const moves = game.moves({ verbose: true });
-  console.log('📊 Legal moves:', moves.length);
-  if (moves.length === 0) {
-    console.log('⚠️ No legal moves available');
-    return null;
-  }
-
-  // Check for blunder
-  if (Math.random() < commander.blunderRate) {
-    console.log('💀 Blunder! Making random move');
-    const randomIndex = Math.floor(Math.random() * moves.length);
-    return moves[randomIndex];
-  }
+  if (moves.length === 0) return null;
 
   const depth = MAX_DEPTH;
   const isMaximizing = game.turn() === 'w';
@@ -291,9 +270,9 @@ export function getBestMove(game: Chess, commander: Commander): Move | null {
   const scoredMoves = moves.map(move => {
     let score = 0;
     if (move.captured) {
-      score += PIECE_VALUES[move.captured] * commander.aggression;
+      score += PIECE_VALUES[move.captured] * 0.5;
     }
-    if (move.san.includes('+')) score += 20 * commander.aggression;
+    if (move.san.includes('+')) score += 20;
     return { move, bonus: score };
   });
 
@@ -319,7 +298,5 @@ export function getBestMove(game: Chess, commander: Commander): Move | null {
     }
   }
 
-  const finalMove = bestMove || moves[0];
-  console.log('✅ getBestMove returning:', finalMove.san);
-  return finalMove;
+  return bestMove || moves[0];
 }

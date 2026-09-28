@@ -20,20 +20,6 @@ const RoundResultModal: React.FC<RoundResultModalProps> = ({ result, onNext, isL
         <div className="text-center text-gray-300 mb-4">
           Round {result.round} • {result.moves} moves
         </div>
-        
-        <div className="flex justify-around mb-4">
-          <div className="text-center">
-            <div className="text-2xl mb-1">{result.whiteCommander.emoji}</div>
-            <div className="text-xs text-blue-300 font-bold">{result.whiteCommander.name}</div>
-            <div className="text-[10px] text-gray-500">ELO {result.whiteCommander.elo}</div>
-          </div>
-          <div className="text-gray-500 self-center text-xl">VS</div>
-          <div className="text-center">
-            <div className="text-2xl mb-1">{result.blackCommander.emoji}</div>
-            <div className="text-xs text-red-300 font-bold">{result.blackCommander.name}</div>
-            <div className="text-[10px] text-gray-500">ELO {result.blackCommander.elo}</div>
-          </div>
-        </div>
 
         {/* Mini eval graph */}
         {result.evalHistory.length > 0 && (

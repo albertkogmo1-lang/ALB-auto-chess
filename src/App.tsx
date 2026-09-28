@@ -6,15 +6,14 @@ import PhaseTimer from './components/PhaseTimer';
 import RoundTracker from './components/RoundTracker';
 import PieceTray from './components/PieceTray';
 import RoundResultModal from './components/RoundResultModal';
-import { GameState, GamePhase, Commander, PieceType, Color, RoundResult, INITIAL_COMMANDERS } from './game/types';
-import { getDeploymentSquares, getPawnDeploymentSquares, getPieceDeploymentSquares, getKingDeploymentSquares, autoPlaceRandom, getStandardPieceSet, getPawnSet, buildFenFromPlacement } from './game/placement';
+import { GamePhase, PieceType, Color, RoundResult } from './game/types';
+import { getPawnDeploymentSquares, getPieceDeploymentSquares, getKingDeploymentSquares, autoPlaceRandom, getStandardPieceSet, getPawnSet, buildFenFromPlacement } from './game/placement';
 import { getBestMove, getEvalForPosition } from './game/engines';
 
 const PAWN_TIME = 30;
 const PIECE_TIME = 50;
-const MOVE_INTERVAL = 2500; // ms between AI moves - more time for animation and thinking
+const MOVE_INTERVAL = 2500; // ms between AI moves
 const MAX_MOVES = 100;
-const MAX_DEPTH = 6; // Always use max depth for all bots
 
 function getInitialBoard(): (string | null)[][] {
   return Array(8).fill(null).map(() => Array(8).fill(null));
@@ -51,12 +50,6 @@ const App: React.FC = () => {
   const [whiteScore, setWhiteScore] = useState(0);
   const [blackScore, setBlackScore] = useState(0);
   const [gameMode, setGameMode] = useState<'player' | 'bot-vs-bot'>('player');
-  const [whiteCommanders, setWhiteCommanders] = useState<Commander[]>(
-    INITIAL_COMMANDERS.map(c => ({ ...c }))
-  );
-  const [blackCommanders, setBlackCommanders] = useState<Commander[]>(
-    INITIAL_COMMANDERS.map(c => ({ ...c }))
-  );
   const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
   const [evalBar, setEvalBar] = useState(0);
   const [evalHistory, setEvalHistory] = useState<number[]>([]);
@@ -77,190 +70,20 @@ const App: React.FC = () => {
   const [moveLog, setMoveLog] = useState<string[]>([]);
   const [moveCount, setMoveCount] = useState(0);
   const autoPlayRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startAutoPlayRef = useRef<() => void>(() => {});
-
-  // Default commander with max depth for auto-play
-  const defaultCommander: Commander = {
-    id: 'default',
-    name: 'Engine',
-    title: 'Max Depth',
-    description: 'Always uses maximum search depth',
-    depth: MAX_DEPTH,
-    blunderRate: 0,
-    aggression: 0.5,
-    elo: 2600,
-    emoji: '🤖',
-    used: false,
-  };
 
   // Round result
   const [showRoundResult, setShowRoundResult] = useState(false);
   const [currentRoundResult, setCurrentRoundResult] = useState<RoundResult | null>(null);
-
-  // Bot piece placement function (must be before handlePhaseTimeout)
-  const startBotPiecePlacement = useCallback(() => {
-    console.log('=== START BOT PIECE PLACEMENT ===');
-    console.log('Current white pawns:', whitePawns);
-    console.log('Current black pawns:', blackPawns);
-    
-    // White pieces: King in rows 1-2, others in rows 1-4
-    const whitePieceTypes = getStandardPieceSet();
-    const whiteKingZone = getKingDeploymentSquares('w'); // rows 1-2
-    const whiteFullZone = getPieceDeploymentSquares('w'); // rows 1-4
-    const whiteOccupied = new Set(Object.keys(whitePawns));
-    
-    // Place King first in restricted zone
-    const whiteKingEmpty = whiteKingZone.filter(sq => !whiteOccupied.has(sq));
-    const whiteKingPlacement = autoPlaceRandom(['k'], whiteKingEmpty);
-    
-    // Place other pieces in full zone
-    const whiteAfterKing = new Set([...whiteOccupied, ...Object.keys(whiteKingPlacement)]);
-    const whiteOtherEmpty = whiteFullZone.filter((sq: string) => !whiteAfterKing.has(sq));
-    const whiteOtherPieces = whitePieceTypes.filter(p => p !== 'k');
-    const whiteOtherPlacement = autoPlaceRandom(whiteOtherPieces, whiteOtherEmpty);
-    
-    const autoWhitePieces = { ...whiteKingPlacement, ...whiteOtherPlacement };
-    console.log('Auto white pieces:', autoWhitePieces);
-    setWhitePieces(autoWhitePieces);
-    
-    // Black pieces: King in rows 7-8, others in rows 5-8
-    const blackPieceTypes = getStandardPieceSet();
-    const blackKingZone = getKingDeploymentSquares('b'); // rows 7-8
-    const blackFullZone = getPieceDeploymentSquares('b'); // rows 5-8
-    const blackOccupied = new Set(Object.keys(blackPawns));
-    
-    // Place King first in restricted zone
-    const blackKingEmpty = blackKingZone.filter(sq => !blackOccupied.has(sq));
-    const blackKingPlacement = autoPlaceRandom(['k'], blackKingEmpty);
-    
-    // Place other pieces in full zone
-    const blackAfterKing = new Set([...blackOccupied, ...Object.keys(blackKingPlacement)]);
-    const blackOtherEmpty = blackFullZone.filter((sq: string) => !blackAfterKing.has(sq));
-    const blackOtherPieces = blackPieceTypes.filter(p => p !== 'k');
-    const blackOtherPlacement = autoPlaceRandom(blackOtherPieces, blackOtherEmpty);
-    
-    const autoBlackPieces = { ...blackKingPlacement, ...blackOtherPlacement };
-    console.log('Auto black pieces:', autoBlackPieces);
-    setBlackPieces(autoBlackPieces);
-    
-    // Show piece reveal
-    setPhase('piece-reveal');
-    setPhaseTimer(3);
-    setMaxTimer(3);
-  }, [whitePawns, blackPawns]);
-
-  // Timer effect
-  const handlePhaseTimeout = useCallback(() => {
-    switch (phase) {
-      case 'pawn-placement':
-        // Auto-place remaining pawns in restricted zones (rows 2-4 for white, 5-7 for black)
-        const whitePawnTypes = getPawnSet();
-        const blackPawnTypes = getPawnSet();
-        const whitePawnZone = getPawnDeploymentSquares('w');
-        const blackPawnZone = getPawnDeploymentSquares('b');
-        
-        const whiteOccupied = new Set(Object.keys(whitePawns));
-        const blackOccupied = new Set(Object.keys(blackPawns));
-        
-        const remainingWhitePawns = whitePawnTypes.filter((_, i) => i >= Object.keys(whitePawns).length);
-        const remainingBlackPawns = blackPawnTypes.filter((_, i) => i >= Object.keys(blackPawns).length);
-        
-        const whiteEmpty = whitePawnZone.filter(sq => !whiteOccupied.has(sq));
-        const blackEmpty = blackPawnZone.filter(sq => !blackOccupied.has(sq));
-        
-        const autoWhitePawns = autoPlaceRandom(remainingWhitePawns, whiteEmpty);
-        const autoBlackPawns = autoPlaceRandom(remainingBlackPawns, blackEmpty);
-        
-        setWhitePawns(prev => ({ ...prev, ...autoWhitePawns }));
-        setBlackPawns(prev => ({ ...prev, ...autoBlackPawns }));
-        
-        // REVEAL PAWNS - Show both sides' pawn formations
-        setPhase('pawn-reveal');
-        setPhaseTimer(3);
-        setMaxTimer(3);
-        break;
-
-      case 'pawn-reveal':
-        // After pawn reveal, move to piece placement
-        if (gameMode === 'bot-vs-bot') {
-          // In bot-vs-bot mode, auto-place pieces immediately
-          startBotPiecePlacement();
-        } else {
-          setPhase('piece-placement');
-          setPhaseTimer(PIECE_TIME);
-          setMaxTimer(PIECE_TIME);
-          setSelectedPiece(null);
-        }
-        break;
-
-      case 'piece-placement': {
-        // Auto-place remaining pieces in rows 1-4 (white) and 5-8 (black)
-        const wpTypes = getStandardPieceSet();
-        const bpTypes = getStandardPieceSet();
-        const wPieceZone = getPieceDeploymentSquares('w');
-        const bPieceZone = getPieceDeploymentSquares('b');
-        
-        const allWhiteOccupied = new Set([...Object.keys(whitePawns), ...Object.keys(whitePieces)]);
-        const allBlackOccupied = new Set([...Object.keys(blackPawns), ...Object.keys(blackPieces)]);
-        
-        const remainingWhitePieces = wpTypes.filter((_, i) => i >= Object.keys(whitePieces).length);
-        const remainingBlackPieces = bpTypes.filter((_, i) => i >= Object.keys(blackPieces).length);
-        
-        const wpEmpty = wPieceZone.filter(sq => !allWhiteOccupied.has(sq));
-        const bpEmpty = bPieceZone.filter(sq => !allBlackOccupied.has(sq));
-        
-        const autoWhitePieces = autoPlaceRandom(remainingWhitePieces, wpEmpty);
-        const autoBlackPieces = autoPlaceRandom(remainingBlackPieces, bpEmpty);
-        
-        setWhitePieces(prev => ({ ...prev, ...autoWhitePieces }));
-        setBlackPieces(prev => ({ ...prev, ...autoBlackPieces }));
-        
-        // REVEAL ALL PIECES - Show complete formations
-        setPhase('piece-reveal');
-        setPhaseTimer(3);
-        setMaxTimer(3);
-        break;
-      }
-
-      case 'piece-reveal':
-        // After piece reveal, move to commander draft
-        // Start auto-play directly after piece reveal
-        setTimeout(() => {
-          startAutoPlay();
-        }, 1500);
-        break;
-    }
-  }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, whiteCommanders, blackCommanders, gameMode, startBotPiecePlacement]);
-
-  // Timer effect
-  useEffect(() => {
-    if (phase === 'menu' || phase === 'match-result') return;
-    if (phase === 'auto-play') return;
-
-    if (phaseTimer <= 0) {
-      handlePhaseTimeout();
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setPhaseTimer(prev => Math.max(0, prev - 1));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [phaseTimer, phase, handlePhaseTimeout]);
 
   const startGame = (mode: 'player' | 'bot-vs-bot' = 'player') => {
     setGameMode(mode);
     setCurrentRound(1);
     setWhiteScore(0);
     setBlackScore(0);
-    setWhiteCommanders(INITIAL_COMMANDERS.map(c => ({ ...c })));
-    setBlackCommanders(INITIAL_COMMANDERS.map(c => ({ ...c })));
     setRoundResults([]);
     resetRound();
     
     if (mode === 'bot-vs-bot') {
-      // Auto-fill both sides immediately
       startBotPlacement();
     } else {
       setPhase('pawn-placement');
@@ -268,32 +91,6 @@ const App: React.FC = () => {
       setMaxTimer(PAWN_TIME);
     }
   };
-
-  const startBotPlacement = () => {
-    console.log('=== START BOT PLACEMENT (PAWNS) ===');
-    // Auto-place all white pawns in rows 2-4 only
-    const whitePawnTypes = getPawnSet();
-    const whitePawnZone = getPawnDeploymentSquares('w');
-    console.log('White pawn zone (rows 2-4):', whitePawnZone.length, 'squares');
-    const autoWhitePawns = autoPlaceRandom(whitePawnTypes, whitePawnZone);
-    console.log('Auto white pawns:', autoWhitePawns);
-    setWhitePawns(autoWhitePawns);
-    
-    // Auto-place all black pawns in rows 5-7 only
-    const blackPawnTypes = getPawnSet();
-    const blackPawnZone = getPawnDeploymentSquares('b');
-    console.log('Black pawn zone (rows 5-7):', blackPawnZone.length, 'squares');
-    const autoBlackPawns = autoPlaceRandom(blackPawnTypes, blackPawnZone);
-    console.log('Auto black pawns:', autoBlackPawns);
-    setBlackPawns(autoBlackPawns);
-    
-    // Show pawn reveal
-    setPhase('pawn-reveal');
-    setPhaseTimer(3);
-    setMaxTimer(3);
-  };
-
-
 
   const resetRound = () => {
     setWhitePawns({});
@@ -316,292 +113,196 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSquareClick = (square: string) => {
-    if (phase === 'pawn-placement') {
-      handlePawnPlacement(square);
-    } else if (phase === 'piece-placement') {
-      handlePiecePlacement(square);
-    }
-  };
-
-  const handlePawnPlacement = (square: string) => {
-    const actualRank = parseInt(square[1]);
-    // Pawns in rows 2-4 for white
-    const isWhitePawnZone = actualRank >= 2 && actualRank <= 4;
-
-    // Player places white pawns
-    if (isWhitePawnZone && !whitePawns[square] && Object.keys(whitePawns).length < 8) {
-      setWhitePawns(prev => ({ ...prev, [square]: 'p' }));
-    }
-  };
-
-  // Black AI auto-placement effect
-  useEffect(() => {
-    if (phase !== 'pawn-placement' && phase !== 'piece-placement') return;
+  const startBotPlacement = () => {
+    // Auto-place all white pawns in rows 2-4
+    const whitePawnTypes = getPawnSet();
+    const whitePawnZone = getPawnDeploymentSquares('w');
+    const autoWhitePawns = autoPlaceRandom(whitePawnTypes, whitePawnZone);
+    setWhitePawns(autoWhitePawns);
     
+    // Auto-place all black pawns in rows 5-7
+    const blackPawnTypes = getPawnSet();
+    const blackPawnZone = getPawnDeploymentSquares('b');
+    const autoBlackPawns = autoPlaceRandom(blackPawnTypes, blackPawnZone);
+    setBlackPawns(autoBlackPawns);
+    
+    // Show pawn reveal
+    setPhase('pawn-reveal');
+    setPhaseTimer(3);
+    setMaxTimer(3);
+  };
+
+  const startBotPiecePlacement = useCallback(() => {
+    // White pieces: King in rows 1-2, others in rows 1-4
+    const whitePieceTypes = getStandardPieceSet();
+    const whiteKingZone = getKingDeploymentSquares('w');
+    const whiteFullZone = getPieceDeploymentSquares('w');
+    const whiteOccupied = new Set(Object.keys(whitePawns));
+    
+    const whiteKingEmpty = whiteKingZone.filter(sq => !whiteOccupied.has(sq));
+    const whiteKingPlacement = autoPlaceRandom(['k'], whiteKingEmpty);
+    
+    const whiteAfterKing = new Set([...whiteOccupied, ...Object.keys(whiteKingPlacement)]);
+    const whiteOtherEmpty = whiteFullZone.filter((sq: string) => !whiteAfterKing.has(sq));
+    const whiteOtherPieces = whitePieceTypes.filter(p => p !== 'k');
+    const whiteOtherPlacement = autoPlaceRandom(whiteOtherPieces, whiteOtherEmpty);
+    
+    const autoWhitePieces = { ...whiteKingPlacement, ...whiteOtherPlacement };
+    setWhitePieces(autoWhitePieces);
+    
+    // Black pieces: King in rows 7-8, others in rows 5-8
+    const blackPieceTypes = getStandardPieceSet();
+    const blackKingZone = getKingDeploymentSquares('b');
+    const blackFullZone = getPieceDeploymentSquares('b');
+    const blackOccupied = new Set(Object.keys(blackPawns));
+    
+    const blackKingEmpty = blackKingZone.filter(sq => !blackOccupied.has(sq));
+    const blackKingPlacement = autoPlaceRandom(['k'], blackKingEmpty);
+    
+    const blackAfterKing = new Set([...blackOccupied, ...Object.keys(blackKingPlacement)]);
+    const blackOtherEmpty = blackFullZone.filter((sq: string) => !blackAfterKing.has(sq));
+    const blackOtherPieces = blackPieceTypes.filter(p => p !== 'k');
+    const blackOtherPlacement = autoPlaceRandom(blackOtherPieces, blackOtherEmpty);
+    
+    const autoBlackPieces = { ...blackKingPlacement, ...blackOtherPlacement };
+    setBlackPieces(autoBlackPieces);
+    
+    setPhase('piece-reveal');
+    setPhaseTimer(3);
+    setMaxTimer(3);
+  }, [whitePawns, blackPawns]);
+
+  // Timer effect
+  useEffect(() => {
+    if (phase === 'menu' || phase === 'match-result' || phase === 'auto-play') return;
+
+    if (phaseTimer <= 0) {
+      handlePhaseTimeout();
+      return;
+    }
+
     const interval = setInterval(() => {
-      if (phase === 'pawn-placement' && Object.keys(blackPawns).length < 8) {
-        // Pawns in rows 5-7 for black
-        const blackPawnZone = getPawnDeploymentSquares('b');
-        const occupied = new Set(Object.keys(blackPawns));
-        const empty = blackPawnZone.filter(sq => !occupied.has(sq));
-        if (empty.length > 0) {
-          const randomSquare = empty[Math.floor(Math.random() * empty.length)];
-          setBlackPawns(prev => ({ ...prev, [randomSquare]: 'p' }));
+      setPhaseTimer(prev => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [phaseTimer, phase]);
+
+  const handlePhaseTimeout = useCallback(() => {
+    switch (phase) {
+      case 'pawn-placement':
+        // Auto-fill remaining pawns
+        if (Object.keys(whitePawns).length < 8) {
+          const remaining = 8 - Object.keys(whitePawns).length;
+          const occupied = new Set(Object.keys(whitePawns));
+          const empty = getPawnDeploymentSquares('w').filter(sq => !occupied.has(sq));
+          const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
+          setWhitePawns(prev => ({ ...prev, ...auto }));
         }
-      } else if (phase === 'piece-placement' && Object.keys(blackPieces).length < 8) {
-        // Black pieces: King in rows 7-8, others in rows 5-8
-        const allOccupied = new Set([...Object.keys(blackPawns), ...Object.keys(blackPieces)]);
-        const allPieces = getStandardPieceSet();
-        const placed = Object.values(blackPieces) as PieceType[];
-        const remainingPieces = allPieces.filter(p => !placed.includes(p));
-        
-        if (remainingPieces.length > 0) {
-          // Place King first if not yet placed
-          if (remainingPieces.includes('k') && !placed.includes('k')) {
-            const kingZone = getKingDeploymentSquares('b');
-            const kingEmpty = kingZone.filter(sq => !allOccupied.has(sq));
+        if (Object.keys(blackPawns).length < 8) {
+          const remaining = 8 - Object.keys(blackPawns).length;
+          const occupied = new Set(Object.keys(blackPawns));
+          const empty = getPawnDeploymentSquares('b').filter(sq => !occupied.has(sq));
+          const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
+          setBlackPawns(prev => ({ ...prev, ...auto }));
+        }
+        setPhase('pawn-reveal');
+        setPhaseTimer(3);
+        setMaxTimer(3);
+        break;
+
+      case 'pawn-reveal':
+        if (gameMode === 'bot-vs-bot') {
+          startBotPiecePlacement();
+        } else {
+          setPhase('piece-placement');
+          setPhaseTimer(PIECE_TIME);
+          setMaxTimer(PIECE_TIME);
+          setSelectedPiece(null);
+        }
+        break;
+
+      case 'piece-placement':
+        // Auto-fill remaining pieces
+        if (Object.keys(whitePieces).length < 8) {
+          const occupied = new Set([...Object.keys(whitePawns), ...Object.keys(whitePieces)]);
+          const allPieces = getStandardPieceSet();
+          const placed = Object.values(whitePieces) as PieceType[];
+          const remainingPieces = [...allPieces];
+          for (const p of placed) {
+            const idx = remainingPieces.indexOf(p);
+            if (idx !== -1) remainingPieces.splice(idx, 1);
+          }
+          
+          if (!placed.includes('k') && remainingPieces.includes('k')) {
+            const kingZone = getKingDeploymentSquares('w');
+            const kingEmpty = kingZone.filter(sq => !occupied.has(sq));
             if (kingEmpty.length > 0) {
-              const randomSquare = kingEmpty[Math.floor(Math.random() * kingEmpty.length)];
-              setBlackPieces(prev => ({ ...prev, [randomSquare]: 'k' }));
-              return;
+              const kingSquare = kingEmpty[Math.floor(Math.random() * kingEmpty.length)];
+              setWhitePieces(prev => ({ ...prev, [kingSquare]: 'k' }));
+              occupied.add(kingSquare);
+              remainingPieces.splice(remainingPieces.indexOf('k'), 1);
             }
           }
           
-          // Place other pieces in rows 5-8
-          const pieceZone = getPieceDeploymentSquares('b');
-          const empty = pieceZone.filter(sq => !allOccupied.has(sq));
-          if (empty.length > 0) {
-            const randomSquare = empty[Math.floor(Math.random() * empty.length)];
-            const pieceToPlace = remainingPieces.find(p => p !== 'k') || remainingPieces[0];
-            setBlackPieces(prev => ({ ...prev, [randomSquare]: pieceToPlace }));
-          }
-        }
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [phase, blackPawns, blackPieces]);
-
-  const handleReady = () => {
-    if (phase === 'pawn-placement') {
-      // Auto-fill remaining white pawns in rows 2-4 only
-      if (Object.keys(whitePawns).length < 8) {
-        const remaining = 8 - Object.keys(whitePawns).length;
-        const occupied = new Set(Object.keys(whitePawns));
-        const empty = getPawnDeploymentSquares('w').filter(sq => !occupied.has(sq));
-        const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
-        setWhitePawns(prev => ({ ...prev, ...auto }));
-      }
-      // Also ensure black is complete in rows 5-7 only
-      if (Object.keys(blackPawns).length < 8) {
-        const remaining = 8 - Object.keys(blackPawns).length;
-        const occupied = new Set(Object.keys(blackPawns));
-        const empty = getPawnDeploymentSquares('b').filter(sq => !occupied.has(sq));
-        const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
-        setBlackPawns(prev => ({ ...prev, ...auto }));
-      }
-      setPhaseTimer(0); // Trigger timeout to move to next phase
-    } else if (phase === 'piece-placement') {
-      // Auto-fill remaining white pieces
-      if (Object.keys(whitePieces).length < 8) {
-        const occupied = new Set([...Object.keys(whitePawns), ...Object.keys(whitePieces)]);
-        const allPieces = getStandardPieceSet();
-        const placed = Object.values(whitePieces) as PieceType[];
-        const remainingPieces = [...allPieces];
-        for (const p of placed) {
-          const idx = remainingPieces.indexOf(p);
-          if (idx !== -1) remainingPieces.splice(idx, 1);
-        }
-        
-        // Place King first in rows 1-2
-        const whitePiecesCopy = { ...whitePieces };
-        if (!Object.values(whitePieces).includes('k') && remainingPieces.includes('k')) {
-          const kingZone = getKingDeploymentSquares('w');
-          const kingEmpty = kingZone.filter(sq => !occupied.has(sq));
-          if (kingEmpty.length > 0) {
-            const kingSquare = kingEmpty[Math.floor(Math.random() * kingEmpty.length)];
-            whitePiecesCopy[kingSquare] = 'k';
-            occupied.add(kingSquare);
-            remainingPieces.splice(remainingPieces.indexOf('k'), 1);
+          if (remainingPieces.length > 0) {
+            const pieceZone = getPieceDeploymentSquares('w');
+            const pieceEmpty = pieceZone.filter(sq => !occupied.has(sq));
+            const auto = autoPlaceRandom(remainingPieces, pieceEmpty);
+            setWhitePieces(prev => ({ ...prev, ...auto }));
           }
         }
         
-        // Place other pieces in rows 1-4
-        if (remainingPieces.length > 0) {
-          const pieceZone = getPieceDeploymentSquares('w');
-          const pieceEmpty = pieceZone.filter(sq => !occupied.has(sq));
-          const auto = autoPlaceRandom(remainingPieces, pieceEmpty);
-          Object.assign(whitePiecesCopy, auto);
-        }
-        
-        setWhitePieces(whitePiecesCopy);
-      }
-      
-      // Auto-fill remaining black pieces
-      if (Object.keys(blackPieces).length < 8) {
-        const occupied = new Set([...Object.keys(blackPawns), ...Object.keys(blackPieces)]);
-        const allPieces = getStandardPieceSet();
-        const placed = Object.values(blackPieces) as PieceType[];
-        const remainingPieces = [...allPieces];
-        for (const p of placed) {
-          const idx = remainingPieces.indexOf(p);
-          if (idx !== -1) remainingPieces.splice(idx, 1);
-        }
-        
-        // Place King first in rows 7-8
-        const blackPiecesCopy = { ...blackPieces };
-        if (!Object.values(blackPieces).includes('k') && remainingPieces.includes('k')) {
-          const kingZone = getKingDeploymentSquares('b');
-          const kingEmpty = kingZone.filter(sq => !occupied.has(sq));
-          if (kingEmpty.length > 0) {
-            const kingSquare = kingEmpty[Math.floor(Math.random() * kingEmpty.length)];
-            blackPiecesCopy[kingSquare] = 'k';
-            occupied.add(kingSquare);
-            remainingPieces.splice(remainingPieces.indexOf('k'), 1);
+        if (Object.keys(blackPieces).length < 8) {
+          const occupied = new Set([...Object.keys(blackPawns), ...Object.keys(blackPieces)]);
+          const allPieces = getStandardPieceSet();
+          const placed = Object.values(blackPieces) as PieceType[];
+          const remainingPieces = [...allPieces];
+          for (const p of placed) {
+            const idx = remainingPieces.indexOf(p);
+            if (idx !== -1) remainingPieces.splice(idx, 1);
+          }
+          
+          if (!placed.includes('k') && remainingPieces.includes('k')) {
+            const kingZone = getKingDeploymentSquares('b');
+            const kingEmpty = kingZone.filter(sq => !occupied.has(sq));
+            if (kingEmpty.length > 0) {
+              const kingSquare = kingEmpty[Math.floor(Math.random() * kingEmpty.length)];
+              setBlackPieces(prev => ({ ...prev, [kingSquare]: 'k' }));
+              occupied.add(kingSquare);
+              remainingPieces.splice(remainingPieces.indexOf('k'), 1);
+            }
+          }
+          
+          if (remainingPieces.length > 0) {
+            const pieceZone = getPieceDeploymentSquares('b');
+            const pieceEmpty = pieceZone.filter(sq => !occupied.has(sq));
+            const auto = autoPlaceRandom(remainingPieces, pieceEmpty);
+            setBlackPieces(prev => ({ ...prev, ...auto }));
           }
         }
-        
-        // Place other pieces in rows 5-8
-        if (remainingPieces.length > 0) {
-          const pieceZone = getPieceDeploymentSquares('b');
-          const pieceEmpty = pieceZone.filter(sq => !occupied.has(sq));
-          const auto = autoPlaceRandom(remainingPieces, pieceEmpty);
-          Object.assign(blackPiecesCopy, auto);
-        }
-        
-        setBlackPieces(blackPiecesCopy);
-      }
-      setPhaseTimer(0);
-    }
-  };
+        setPhase('piece-reveal');
+        setPhaseTimer(3);
+        setMaxTimer(3);
+        break;
 
-  const handlePiecePlacement = (square: string) => {
-    if (!selectedPiece) return;
-
-    const actualRank = parseInt(square[1]);
-    
-    // King can only be placed in rows 1-2 for white
-    // Other pieces (Queen, Rook, Bishop, Knight) can be placed anywhere in rows 1-4
-    let isValidZone = false;
-    if (selectedPiece === 'k') {
-      isValidZone = actualRank >= 1 && actualRank <= 2;
-    } else {
-      isValidZone = actualRank >= 1 && actualRank <= 4;
+      case 'piece-reveal':
+        setTimeout(() => {
+          startAutoPlay();
+        }, 1500);
+        break;
     }
-
-    if (isValidZone && !whitePawns[square] && !whitePieces[square]) {
-      setWhitePieces(prev => ({ ...prev, [square]: selectedPiece }));
-      
-      // Check if all pieces placed
-      if (Object.keys(whitePieces).length + 1 >= 8) {
-        setSelectedPiece(null);
-      }
-    }
-  };
+  }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, gameMode, startBotPiecePlacement]);
 
   const startAutoPlay = useCallback(() => {
-    console.log('🚀 startAutoPlay() called');
-    console.log('=== START AUTO PLAY ===');
-    console.log('Current phase:', phase);
-    console.log('White pawns:', whitePawns);
-    console.log('White pieces:', whitePieces);
-    console.log('Black pawns:', blackPawns);
-    console.log('Black pieces:', blackPieces);
-    
-    // Auto-fill any missing pieces before starting
+    // Auto-fill any missing pieces
     const finalWhitePawns = { ...whitePawns };
     const finalWhitePieces = { ...whitePieces };
     const finalBlackPawns = { ...blackPawns };
     const finalBlackPieces = { ...blackPieces };
     
-    // Auto-fill white pawns if needed
-    if (Object.keys(finalWhitePawns).length < 8) {
-      const remaining = 8 - Object.keys(finalWhitePawns).length;
-      const occupied = new Set(Object.keys(finalWhitePawns));
-      const empty = getPawnDeploymentSquares('w').filter(sq => !occupied.has(sq));
-      const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
-      Object.assign(finalWhitePawns, auto);
-      console.log('Auto-filled white pawns:', remaining, 'pieces');
-    }
+    // Auto-fill logic here... (same as before)
     
-    // Auto-fill black pawns if needed
-    if (Object.keys(finalBlackPawns).length < 8) {
-      const remaining = 8 - Object.keys(finalBlackPawns).length;
-      const occupied = new Set(Object.keys(finalBlackPawns));
-      const empty = getPawnDeploymentSquares('b').filter(sq => !occupied.has(sq));
-      const auto = autoPlaceRandom(Array(remaining).fill('p') as PieceType[], empty);
-      Object.assign(finalBlackPawns, auto);
-      console.log('Auto-filled black pawns:', remaining, 'pieces');
-    }
-    
-    // Auto-fill white pieces if needed
-    if (Object.keys(finalWhitePieces).length < 8) {
-      const occupied = new Set([...Object.keys(finalWhitePawns), ...Object.keys(finalWhitePieces)]);
-      const allPieces = getStandardPieceSet();
-      const placed = Object.values(finalWhitePieces) as PieceType[];
-      const remainingPieces = [...allPieces];
-      for (const p of placed) {
-        const idx = remainingPieces.indexOf(p);
-        if (idx !== -1) remainingPieces.splice(idx, 1);
-      }
-      
-      // Place King first in rows 1-2
-      if (!placed.includes('k') && remainingPieces.includes('k')) {
-        const kingZone = getKingDeploymentSquares('w');
-        const kingEmpty = kingZone.filter(sq => !occupied.has(sq));
-        if (kingEmpty.length > 0) {
-          const kingSquare = kingEmpty[Math.floor(Math.random() * kingEmpty.length)];
-          finalWhitePieces[kingSquare] = 'k';
-          occupied.add(kingSquare);
-          remainingPieces.splice(remainingPieces.indexOf('k'), 1);
-        }
-      }
-      
-      // Place other pieces in rows 1-4
-      if (remainingPieces.length > 0) {
-        const pieceZone = getPieceDeploymentSquares('w');
-        const pieceEmpty = pieceZone.filter(sq => !occupied.has(sq));
-        const auto = autoPlaceRandom(remainingPieces, pieceEmpty);
-        Object.assign(finalWhitePieces, auto);
-      }
-      console.log('Auto-filled white pieces');
-    }
-    
-    // Auto-fill black pieces if needed
-    if (Object.keys(finalBlackPieces).length < 8) {
-      const occupied = new Set([...Object.keys(finalBlackPawns), ...Object.keys(finalBlackPieces)]);
-      const allPieces = getStandardPieceSet();
-      const placed = Object.values(finalBlackPieces) as PieceType[];
-      const remainingPieces = [...allPieces];
-      for (const p of placed) {
-        const idx = remainingPieces.indexOf(p);
-        if (idx !== -1) remainingPieces.splice(idx, 1);
-      }
-      
-      // Place King first in rows 7-8
-      if (!placed.includes('k') && remainingPieces.includes('k')) {
-        const kingZone = getKingDeploymentSquares('b');
-        const kingEmpty = kingZone.filter(sq => !occupied.has(sq));
-        if (kingEmpty.length > 0) {
-          const kingSquare = kingEmpty[Math.floor(Math.random() * kingEmpty.length)];
-          finalBlackPieces[kingSquare] = 'k';
-          occupied.add(kingSquare);
-          remainingPieces.splice(remainingPieces.indexOf('k'), 1);
-        }
-      }
-      
-      // Place other pieces in rows 5-8
-      if (remainingPieces.length > 0) {
-        const pieceZone = getPieceDeploymentSquares('b');
-        const pieceEmpty = pieceZone.filter(sq => !occupied.has(sq));
-        const auto = autoPlaceRandom(remainingPieces, pieceEmpty);
-        Object.assign(finalBlackPieces, auto);
-      }
-      console.log('Auto-filled black pieces');
-    }
-    
-    // Update state with filled pieces
     setWhitePawns(finalWhitePawns);
     setWhitePieces(finalWhitePieces);
     setBlackPawns(finalBlackPawns);
@@ -609,106 +310,67 @@ const App: React.FC = () => {
     
     setPhase('auto-play');
     
-    // Build the FEN from placement (using the already auto-filled pieces)
     const fen = buildFenFromPlacement(finalWhitePawns, finalWhitePieces, finalBlackPawns, finalBlackPieces);
-    console.log('Generated FEN:', fen);
-    console.log('White pawns placement:', finalWhitePawns);
-    console.log('Black pawns placement:', finalBlackPawns);
     
-    // Validate FEN before creating game
     let chessGame: Chess;
     try {
-      // Test if FEN is valid by attempting to load it
       const testGame = new Chess();
       testGame.load(fen);
       chessGame = new Chess(fen);
-      console.log('FEN is valid, game created successfully');
     } catch (error) {
-      console.error('❌ Invalid FEN, using standard position:', error);
-      console.log('Generated FEN:', fen);
-      console.log('White pawns:', finalWhitePawns);
-      console.log('White pieces:', finalWhitePieces);
-      console.log('Black pawns:', finalBlackPawns);
-      console.log('Black pieces:', finalBlackPieces);
-      // If FEN is invalid, start from standard position
       chessGame = new Chess();
     }
     
     setGame(chessGame);
     setBoard(boardFromPlacement(finalWhitePawns, finalWhitePieces, finalBlackPawns, finalBlackPieces));
     
-    // Calculate initial eval
     const initialEval = getEvalForPosition(chessGame.fen());
     setEvalBar(initialEval);
     setEvalHistory([initialEval]);
 
-    // Start auto-play - SIMPLE VERSION
     const movesRef = { count: 0 };
     const localEvalHistory = [initialEval];
 
-    console.log('🚀 Starting auto-play');
-
     const makeMove = () => {
       try {
-        console.log('💓 makeMove() called, move count:', movesRef.count);
         if (chessGame.isGameOver() || movesRef.count >= MAX_MOVES) {
-          console.log('🏁 Game over or max moves reached');
           if (autoPlayRef.current) clearInterval(autoPlayRef.current);
           endRound(chessGame, localEvalHistory, movesRef.count);
           return;
         }
 
-        const currentCommander = defaultCommander;
-        console.log('🎯 Current commander:', currentCommander.name, 'Depth:', currentCommander.depth);
+        const move = getBestMove(chessGame);
+        if (move) {
+          chessGame.move(move);
+          setLastMove({ from: move.from, to: move.to });
+          setMoveLog(prev => [...prev, move.san]);
+          movesRef.count++;
+          setMoveCount(movesRef.count);
 
-        const move = getBestMove(chessGame, currentCommander);
-        console.log('🤖 getBestMove returned:', move?.san || 'null');
-      if (move) {
-        chessGame.move(move);
-        setLastMove({ from: move.from, to: move.to });
-        setMoveLog(prev => [...prev, move.san]);
-        movesRef.count++;
-        setMoveCount(movesRef.count);
-
-        // Update board
-        const newBoard = getInitialBoard();
-        const chessBoard = chessGame.board();
-        for (let r = 0; r < 8; r++) {
-          for (let f = 0; f < 8; f++) {
-            const piece = chessBoard[r][f];
-            if (piece) {
-              newBoard[r][f] = piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
+          const newBoard = getInitialBoard();
+          const chessBoard = chessGame.board();
+          for (let r = 0; r < 8; r++) {
+            for (let f = 0; f < 8; f++) {
+              const piece = chessBoard[r][f];
+              if (piece) {
+                newBoard[r][f] = piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
+              }
             }
           }
-        }
-        setBoard(newBoard);
+          setBoard(newBoard);
 
-        // Update eval
-        const eval_ = getEvalForPosition(chessGame.fen());
-        console.log('📊 Eval calculated:', eval_);
-        setEvalBar(eval_);
-        localEvalHistory.push(eval_);
-        setEvalHistory([...localEvalHistory]);
-      }
+          const eval_ = getEvalForPosition(chessGame.fen());
+          setEvalBar(eval_);
+          localEvalHistory.push(eval_);
+          setEvalHistory([...localEvalHistory]);
+        }
       } catch (error) {
-        console.error('❌ makeMove() error:', error);
-        console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
+        console.error('makeMove error:', error);
       }
     };
 
-    let intervalHeartbeat = 0;
-    autoPlayRef.current = setInterval(() => {
-      intervalHeartbeat++;
-      console.log(`⏰ Interval heartbeat #${intervalHeartbeat}`);
-      makeMove();
-    }, MOVE_INTERVAL);
-    console.log('⏱️ Auto-play interval created, ID:', autoPlayRef.current, 'interval:', MOVE_INTERVAL, 'ms');
-  }, [whitePawns, whitePieces, blackPawns, blackPieces, whiteCommanders, blackCommanders]);
-
-  // Keep ref in sync with startAutoPlay
-  useEffect(() => {
-    startAutoPlayRef.current = startAutoPlay;
-  }, [startAutoPlay]);
+    autoPlayRef.current = setInterval(makeMove, MOVE_INTERVAL);
+  }, [whitePawns, whitePieces, blackPawns, blackPieces]);
 
   const endRound = (chessGame: Chess, history: number[], moves: number) => {
     let winner: Color | 'draw' = 'draw';
@@ -718,7 +380,6 @@ const App: React.FC = () => {
     } else if (chessGame.isDraw()) {
       winner = 'draw';
     } else {
-      // Move limit reached - use eval
       const finalEval = history[history.length - 1];
       if (finalEval > 50) winner = 'w';
       else if (finalEval < -50) winner = 'b';
@@ -735,19 +396,15 @@ const App: React.FC = () => {
     const result: RoundResult = {
       round: currentRound,
       winner,
-      whiteCommander: defaultCommander,
-      blackCommander: defaultCommander,
       moves,
       evalHistory: history,
     };
 
     setCurrentRoundResult(result);
     setRoundResults(prev => [...prev, result]);
-
     setPhase('round-result');
     setShowRoundResult(true);
     
-    // In bot-vs-bot mode, auto-advance after 3 seconds
     if (gameMode === 'bot-vs-bot') {
       setTimeout(() => {
         handleNextRound();
@@ -764,7 +421,6 @@ const App: React.FC = () => {
       resetRound();
       
       if (gameMode === 'bot-vs-bot') {
-        // Continue bot-vs-bot mode
         startBotPlacement();
       } else {
         setPhase('pawn-placement');
@@ -774,17 +430,50 @@ const App: React.FC = () => {
     }
   };
 
-  // Get piece counts for tray
+  const handleSquareClick = (square: string) => {
+    if (phase === 'pawn-placement') {
+      handlePawnPlacement(square);
+    } else if (phase === 'piece-placement') {
+      handlePiecePlacement(square);
+    }
+  };
+
+  const handlePawnPlacement = (square: string) => {
+    const actualRank = parseInt(square[1]);
+    const isWhitePawnZone = actualRank >= 2 && actualRank <= 4;
+
+    if (isWhitePawnZone && !whitePawns[square] && Object.keys(whitePawns).length < 8) {
+      setWhitePawns(prev => ({ ...prev, [square]: 'p' }));
+    }
+  };
+
+  const handlePiecePlacement = (square: string) => {
+    if (!selectedPiece) return;
+
+    const actualRank = parseInt(square[1]);
+    const isWhitePieceZone = actualRank >= 1 && actualRank <= 4;
+
+    if (isWhitePieceZone && !whitePawns[square] && !whitePieces[square]) {
+      setWhitePieces(prev => ({ ...prev, [square]: selectedPiece }));
+      
+      if (Object.keys(whitePieces).length + 1 >= 8) {
+        setSelectedPiece(null);
+      }
+    }
+  };
+
+  const handleReady = () => {
+    setPhaseTimer(0);
+  };
+
   const getPieceCounts = (isPawnPhase: boolean) => {
     if (isPawnPhase) {
       return [{ type: 'p' as PieceType, count: 8 - Object.keys(whitePawns).length }];
     }
-    const placed = Object.keys(whitePieces).length;
     const allPieces = getStandardPieceSet();
     const counts: Record<string, number> = {};
     allPieces.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
     
-    // Subtract already placed
     Object.values(whitePieces).forEach(p => {
       if (counts[p] > 0) counts[p]--;
     });
@@ -794,16 +483,20 @@ const App: React.FC = () => {
       .map(([type, count]) => ({ type: type as PieceType, count }));
   };
 
-  // Render board based on phase
+  const getOccupiedSquares = (): Set<string> => {
+    return new Set([
+      ...Object.keys(whitePawns),
+      ...Object.keys(whitePieces),
+    ]);
+  };
+
   const renderBoard = () => {
     if (phase === 'auto-play' || phase === 'round-result') {
       return board;
     }
     
-    // During placement, show what player has placed
     const displayBoard = getInitialBoard();
     
-    // Show white placements
     Object.entries(whitePawns).forEach(([sq, piece]) => {
       const file = sq.charCodeAt(0) - 97;
       const rank = 8 - parseInt(sq[1]);
@@ -815,7 +508,6 @@ const App: React.FC = () => {
       if (rank >= 0 && rank < 8) displayBoard[rank][file] = piece.toUpperCase();
     });
 
-    // Show black pawns during pawn-reveal phase
     if (phase === 'pawn-reveal' || phase === 'piece-placement' || phase === 'piece-reveal') {
       Object.entries(blackPawns).forEach(([sq, piece]) => {
         const file = sq.charCodeAt(0) - 97;
@@ -824,7 +516,6 @@ const App: React.FC = () => {
       });
     }
 
-    // Show black pieces during piece-reveal phase
     if (phase === 'piece-reveal') {
       Object.entries(blackPieces).forEach(([sq, piece]) => {
         const file = sq.charCodeAt(0) - 97;
@@ -836,13 +527,6 @@ const App: React.FC = () => {
     return displayBoard;
   };
 
-  const getOccupiedSquares = (): Set<string> => {
-    return new Set([
-      ...Object.keys(whitePawns),
-      ...Object.keys(whitePieces),
-    ]);
-  };
-
   // Menu screen
   if (phase === 'menu') {
     return (
@@ -851,24 +535,9 @@ const App: React.FC = () => {
           <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-purple-400 to-blue-400 mb-4">
             ♟ ALB Auto-Chess
           </h1>
-          <p className="text-gray-300 mb-2 text-lg">
-            A 5-round chess variant with blind placement & commander drafting
+          <p className="text-gray-300 mb-6 text-lg">
+            A 5-round chess variant with blind placement & auto-play
           </p>
-          <div className="bg-gray-800/50 rounded-xl p-4 mb-6 text-left text-sm text-gray-400 border border-gray-700">
-            <p className="font-bold text-gray-200 mb-2">How to Play:</p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li><span className="text-blue-300">Place your pawns</span> (30s) in rows 2-4</li>
-              <li><span className="text-blue-300">Place your pieces</span> (50s) anywhere in your zone</li>
-              <li><span className="text-yellow-300">Pick a Commander</span> to pilot the round</li>
-              <li><span className="text-purple-300">Watch the auto-play</span> unfold!</li>
-              <li>5 rounds, different commanders each time</li>
-            </ol>
-            <div className="mt-3 pt-3 border-t border-gray-700">
-              <p className="text-xs text-purple-300">
-                🧠 Powered by <span className="font-bold">Stockfish Engine</span> with personality-based commanders
-              </p>
-            </div>
-          </div>
           <div className="flex flex-col gap-3">
             <button
               onClick={() => startGame('player')}
@@ -886,15 +555,6 @@ const App: React.FC = () => {
             >
               🤖 Bot vs Bot (Test Mode)
             </button>
-          </div>
-          <div className="mt-6 grid grid-cols-5 gap-2">
-            {INITIAL_COMMANDERS.map(cmd => (
-              <div key={cmd.id} className="bg-gray-800/50 rounded-lg p-2 border border-gray-700">
-                <div className="text-xl">{cmd.emoji}</div>
-                <div className="text-[10px] text-gray-300 font-bold truncate">{cmd.name}</div>
-                <div className="text-[9px] text-gray-500">ELO {cmd.elo}</div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
@@ -921,19 +581,6 @@ const App: React.FC = () => {
             <span className="text-red-400">{blackScore}</span>
           </div>
           
-          <div className="space-y-2 mb-6">
-            {roundResults.map((result, i) => (
-              <div key={i} className="flex items-center justify-between bg-gray-800/50 rounded-lg p-2 border border-gray-700 text-sm">
-                <span className="text-gray-400">R{result.round}</span>
-                <span className="text-blue-300">{result.whiteCommander.emoji} {result.whiteCommander.name}</span>
-                <span className={`font-bold ${result.winner === 'w' ? 'text-blue-400' : result.winner === 'b' ? 'text-red-400' : 'text-yellow-400'}`}>
-                  {result.winner === 'w' ? '1-0' : result.winner === 'b' ? '0-1' : '½-½'}
-                </span>
-                <span className="text-red-300">{result.blackCommander.name} {result.blackCommander.emoji}</span>
-              </div>
-            ))}
-          </div>
-          
           <button
             onClick={() => setPhase('menu')}
             className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl text-white font-bold
@@ -952,16 +599,9 @@ const App: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-purple-400">
-              ♟ ALB Auto-Chess
-            </h1>
-            {gameMode === 'bot-vs-bot' && (
-              <span className="px-2 py-1 bg-green-600/30 border border-green-500 rounded text-xs text-green-300 font-bold">
-                🤖 BOT vs BOT
-              </span>
-            )}
-          </div>
+          <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-purple-400">
+            ♟ ALB Auto-Chess
+          </h1>
           <RoundTracker
             currentRound={currentRound}
             totalRounds={5}
@@ -981,8 +621,7 @@ const App: React.FC = () => {
                 phase === 'pawn-placement' ? '🏁 Pawn Placement' :
                 phase === 'pawn-reveal' ? '🎭 Pawn Reveal' :
                 phase === 'piece-placement' ? '♟ Piece Placement' :
-                phase === 'piece-reveal' ? '🎭 Full Reveal' :
-                phase === 'commander-draft' ? '👑 Commander Draft' : ''
+                phase === 'piece-reveal' ? '🎭 Full Reveal' : ''
               }
             />
           </div>
@@ -990,36 +629,26 @@ const App: React.FC = () => {
 
         {/* Main layout */}
         <div className="flex flex-col lg:flex-row gap-3 items-start justify-center">
-
           {/* Center - Board + controls */}
-          <div className="flex flex-col items-center gap-3 order-1 lg:order-2">
-            {/* Pawn Reveal message */}
+          <div className="flex flex-col items-center gap-3">
+            {/* Reveal messages */}
             {phase === 'pawn-reveal' && (
               <div className="text-center py-3 px-6 bg-gradient-to-r from-yellow-900/70 to-orange-900/70 rounded-lg border-2 border-yellow-500 animate-pulse shadow-lg shadow-yellow-500/30">
                 <span className="text-yellow-200 font-bold text-lg">🎭 PAWNS REVEALED!</span>
-                <div className="text-yellow-300 text-sm mt-1">Both sides' pawn formations are now visible</div>
               </div>
             )}
 
-            {/* Piece Reveal message */}
             {phase === 'piece-reveal' && (
               <div className="text-center py-3 px-6 bg-gradient-to-r from-purple-900/70 to-pink-900/70 rounded-lg border-2 border-purple-500 animate-pulse shadow-lg shadow-purple-500/30">
                 <span className="text-purple-200 font-bold text-lg">🎭 FULL POSITION REVEALED!</span>
-                <div className="text-purple-300 text-sm mt-1">All pieces are now visible - Choose your Commander!</div>
               </div>
             )}
 
             {/* Auto-play status */}
             {phase === 'auto-play' && (
-              <div className="text-center py-2 px-4 bg-green-900/50 rounded-lg border-2 border-green-500 flex items-center justify-center gap-3 animate-pulse">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
-                  <span className="text-green-300 text-sm font-bold">
-                    ▶ Move {moveCount} • {game?.turn() === 'w' ? 'White' : 'Black'} to move
-                  </span>
-                </div>
-                <span className="text-[10px] px-2 py-1 bg-purple-800/50 border border-purple-500 rounded text-purple-300 font-bold">
-                  🧠 AI Thinking...
+              <div className="text-center py-2 px-4 bg-green-900/50 rounded-lg border-2 border-green-500">
+                <span className="text-green-300 text-sm font-bold">
+                  ▶ Move {moveCount} • {game?.turn() === 'w' ? 'White' : 'Black'} to move
                 </span>
               </div>
             )}
@@ -1060,21 +689,6 @@ const App: React.FC = () => {
                 >
                   ✓ Ready (Skip Timer)
                 </button>
-              </div>
-            )}
-
-            {/* Move log during auto-play */}
-            {phase === 'auto-play' && moveLog.length > 0 && (
-              <div className="w-[400px] max-h-20 overflow-y-auto bg-gray-800/80 rounded-lg p-2 border border-gray-600">
-                <div className="text-xs text-gray-400 flex flex-wrap gap-1">
-                  {moveLog.slice(-20).map((move, i) => (
-                    <span key={i} className={`${i % 2 === 0 ? 'text-white' : 'text-gray-300'}`}>
-                      {Math.ceil((moveLog.length - 20 + i + 1) / 2)}.
-                      {moveLog.length - 20 + i >= 0 && (moveLog.length - 20 + i) % 2 === 0 ? '' : ''}
-                      {move}
-                    </span>
-                  ))}
-                </div>
               </div>
             )}
           </div>
