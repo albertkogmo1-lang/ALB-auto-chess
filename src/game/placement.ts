@@ -27,9 +27,9 @@ export function getPawnDeploymentSquares(color: Color): string[] {
 
 export function getPieceDeploymentSquares(color: Color): string[] {
   const squares: string[] = [];
-  // King and pieces in rows 1-2 (white) or 7-8 (black)
-  const startRow = color === 'w' ? 1 : 7;
-  const endRow = color === 'w' ? 2 : 8;
+  // Pieces can be placed anywhere in rows 1-4 (white) or 5-8 (black)
+  const startRow = color === 'w' ? 1 : 5;
+  const endRow = color === 'w' ? 4 : 8;
   for (let row = startRow; row <= endRow; row++) {
     for (let col = 0; col < 8; col++) {
       squares.push(String.fromCharCode(97 + col) + row);
@@ -125,6 +125,22 @@ export function buildFenFromPlacement(
   
   const fen = rows.join('/') + ' w - - 0 1';
   console.log('Generated FEN string:', fen);
+  
+  // Log pawn positions specifically
+  const whitePawnSquares = Object.keys(whitePawns);
+  const blackPawnSquares = Object.keys(blackPawns);
+  console.log('White pawn squares:', whitePawnSquares);
+  console.log('Black pawn squares:', blackPawnSquares);
+  
+  // Check if pawns are on correct ranks
+  whitePawnSquares.forEach(sq => {
+    const rank = parseInt(sq[1]);
+    console.log(`White pawn on ${sq} (rank ${rank}) - should move towards rank 8`);
+  });
+  blackPawnSquares.forEach(sq => {
+    const rank = parseInt(sq[1]);
+    console.log(`Black pawn on ${sq} (rank ${rank}) - should move towards rank 1`);
+  });
   
   // Validate FEN structure
   const parts = fen.split(' ');

@@ -29,7 +29,7 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
     if (highlightZone === 'w' && actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/30';
     if (highlightZone === 'b' && actualRank >= 5 && actualRank <= 8) return 'ring-2 ring-inset ring-red-400/30';
     if (highlightZone === 'pawn' && actualRank >= 2 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/50';
-    if (highlightZone === 'piece' && actualRank >= 1 && actualRank <= 2) return 'ring-2 ring-inset ring-green-400/50';
+    if (highlightZone === 'piece' && actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-green-400/50';
     if (highlightZone === 'both') {
       if (actualRank >= 1 && actualRank <= 4) return 'ring-2 ring-inset ring-blue-400/40';
       if (actualRank >= 5 && actualRank <= 8) return 'ring-2 ring-inset ring-red-400/40';
@@ -65,7 +65,7 @@ const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occu
               : highlightZone === 'pawn'
               ? (actualRank >= 2 && actualRank <= 4)
               : highlightZone === 'piece'
-              ? (actualRank >= 1 && actualRank <= 2)
+              ? (actualRank >= 1 && actualRank <= 4)
               : highlightZone === 'both'
               ? ((actualRank >= 1 && actualRank <= 4) || (actualRank >= 5 && actualRank <= 8))
               : false;

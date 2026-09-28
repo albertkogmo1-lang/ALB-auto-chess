@@ -93,24 +93,24 @@ const App: React.FC = () => {
     console.log('Current white pawns:', whitePawns);
     console.log('Current black pawns:', blackPawns);
     
-    // Auto-place all white pieces in rows 1-2 (king and pieces zone)
+    // Auto-place all white pieces in rows 1-4 (pieces zone, excluding pawn squares)
     const whitePieceTypes = getStandardPieceSet();
     const whitePieceZone = getPieceDeploymentSquares('w');
     const whiteOccupied = new Set(Object.keys(whitePawns));
     const whiteEmpty = whitePieceZone.filter(sq => !whiteOccupied.has(sq));
-    console.log('White piece zone (rows 1-2):', whitePieceZone.length, 'squares');
+    console.log('White piece zone (rows 1-4):', whitePieceZone.length, 'squares');
     console.log('White occupied by pawns:', whiteOccupied.size);
     console.log('White empty for pieces:', whiteEmpty.length);
     const autoWhitePieces = autoPlaceRandom(whitePieceTypes, whiteEmpty);
     console.log('Auto white pieces:', autoWhitePieces);
     setWhitePieces(autoWhitePieces);
     
-    // Auto-place all black pieces in rows 7-8 (king and pieces zone)
+    // Auto-place all black pieces in rows 5-8 (pieces zone, excluding pawn squares)
     const blackPieceTypes = getStandardPieceSet();
     const blackPieceZone = getPieceDeploymentSquares('b');
     const blackOccupied = new Set(Object.keys(blackPawns));
     const blackEmpty = blackPieceZone.filter(sq => !blackOccupied.has(sq));
-    console.log('Black piece zone (rows 7-8):', blackPieceZone.length, 'squares');
+    console.log('Black piece zone (rows 5-8):', blackPieceZone.length, 'squares');
     console.log('Black occupied by pawns:', blackOccupied.size);
     console.log('Black empty for pieces:', blackEmpty.length);
     const autoBlackPieces = autoPlaceRandom(blackPieceTypes, blackEmpty);
@@ -168,7 +168,7 @@ const App: React.FC = () => {
         break;
 
       case 'piece-placement': {
-        // Auto-place remaining pieces in rows 1-2 (white) and 7-8 (black)
+        // Auto-place remaining pieces in rows 1-4 (white) and 5-8 (black)
         const wpTypes = getStandardPieceSet();
         const bpTypes = getStandardPieceSet();
         const wPieceZone = getPieceDeploymentSquares('w');
@@ -366,7 +366,7 @@ const App: React.FC = () => {
           setBlackPawns(prev => ({ ...prev, [randomSquare]: 'p' }));
         }
       } else if (phase === 'piece-placement' && Object.keys(blackPieces).length < 8) {
-        // Pieces in rows 7-8 for black
+        // Pieces in rows 5-8 for black
         const blackPieceZone = getPieceDeploymentSquares('b');
         const allOccupied = new Set([...Object.keys(blackPawns), ...Object.keys(blackPieces)]);
         const empty = blackPieceZone.filter(sq => !allOccupied.has(sq));
@@ -403,7 +403,7 @@ const App: React.FC = () => {
       }
       setPhaseTimer(0); // Trigger timeout to move to next phase
     } else if (phase === 'piece-placement') {
-      // Auto-fill remaining white pieces in rows 1-2
+      // Auto-fill remaining white pieces in rows 1-4
       if (Object.keys(whitePieces).length < 8) {
         const remaining = 8 - Object.keys(whitePieces).length;
         const occupied = new Set([...Object.keys(whitePawns), ...Object.keys(whitePieces)]);
@@ -418,7 +418,7 @@ const App: React.FC = () => {
         const auto = autoPlaceRandom(remainingPieces.slice(0, remaining), empty);
         setWhitePieces(prev => ({ ...prev, ...auto }));
       }
-      // Also ensure black is complete in rows 7-8
+      // Also ensure black is complete in rows 5-8
       if (Object.keys(blackPieces).length < 8) {
         const remaining = 8 - Object.keys(blackPieces).length;
         const occupied = new Set([...Object.keys(blackPawns), ...Object.keys(blackPieces)]);
@@ -443,8 +443,8 @@ const App: React.FC = () => {
     if (!selectedPiece) return;
 
     const actualRank = parseInt(square[1]);
-    // Pieces (including king) in rows 1-2 for white
-    const isWhitePieceZone = actualRank >= 1 && actualRank <= 2;
+    // Pieces can be placed in rows 1-4 for white
+    const isWhitePieceZone = actualRank >= 1 && actualRank <= 4;
 
     if (isWhitePieceZone && !whitePawns[square] && !whitePieces[square]) {
       setWhitePieces(prev => ({ ...prev, [square]: selectedPiece }));
@@ -524,7 +524,7 @@ const App: React.FC = () => {
         }
         const auto = autoPlaceRandom(remainingPieces.slice(0, remaining), empty);
         setWhitePieces(prev => ({ ...prev, ...auto }));
-        console.log('Auto-filled white pieces:', auto);
+        console.log('Auto-filled white pieces in rows 1-4:', auto);
       }
       if (blackPieceCount < 8) {
         const remaining = 8 - blackPieceCount;
@@ -539,7 +539,7 @@ const App: React.FC = () => {
         }
         const auto = autoPlaceRandom(remainingPieces.slice(0, remaining), empty);
         setBlackPieces(prev => ({ ...prev, ...auto }));
-        console.log('Auto-filled black pieces:', auto);
+        console.log('Auto-filled black pieces in rows 5-8:', auto);
       }
       
       // Wait for state to update and retry
@@ -617,6 +617,8 @@ const App: React.FC = () => {
 
     const fen = buildFenFromPlacement(finalWhitePawns, finalWhitePieces, finalBlackPawns, finalBlackPieces);
     console.log('Generated FEN:', fen);
+    console.log('White pawns placement:', finalWhitePawns);
+    console.log('Black pawns placement:', finalBlackPawns);
     
     // Validate FEN before creating game
     let chessGame: Chess;
