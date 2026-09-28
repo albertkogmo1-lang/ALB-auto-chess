@@ -14,7 +14,20 @@ export function getDeploymentSquares(color: Color): string[] {
 
 export function getPawnDeploymentSquares(color: Color): string[] {
   const squares: string[] = [];
-  // Pawns only in rows 1-2 (white) or 7-8 (black)
+  // Pawns in rows 2-4 (white) or 5-7 (black)
+  const startRow = color === 'w' ? 2 : 5;
+  const endRow = color === 'w' ? 4 : 7;
+  for (let row = startRow; row <= endRow; row++) {
+    for (let col = 0; col < 8; col++) {
+      squares.push(String.fromCharCode(97 + col) + row);
+    }
+  }
+  return squares;
+}
+
+export function getPieceDeploymentSquares(color: Color): string[] {
+  const squares: string[] = [];
+  // King and pieces in rows 1-2 (white) or 7-8 (black)
   const startRow = color === 'w' ? 1 : 7;
   const endRow = color === 'w' ? 2 : 8;
   for (let row = startRow; row <= endRow; row++) {
