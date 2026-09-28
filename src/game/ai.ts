@@ -296,89 +296,54 @@ function eloToStockfishParams(elo: number): { depth: number; skillLevel: number 
 
 // Fallback custom engine
 function getBestMoveFallback(game: Chess, commander: Commander): Move | null {
-  console.log(`\n🎲 [FALLBACK] === getBestMoveFallback START ===`);
-  console.log(`🎲 [FALLBACK] Commander: ${commander.name}, Depth: ${commander.depth}`);
-  
-  const startTime = performance.now();
-  
-  try {
-    const moves = game.moves({ verbose: true });
-    console.log(`🎲 [FALLBACK] Found ${moves.length} legal moves`);
-    
-    if (moves.length === 0) {
-      console.log('⚠️ [FALLBACK] No legal moves available');
-      return null;
-    }
+  const moves = game.moves({ verbose: true });
+  if (moves.length === 0) return null;
 
-    // Check for blunder - make a random move
-    if (Math.random() < commander.blunderRate) {
-      console.log(`💀 [FALLBACK] Blunder! Making random move`);
-      const randomIndex = Math.floor(Math.random() * moves.length);
-      return moves[randomIndex];
-    }
-
-    const isMaximizing = game.turn() === 'w';
-    let bestMove: Move | null = null;
-    let bestEval = isMaximizing ? -Infinity : Infinity;
-
-    console.log(`🎲 [FALLBACK] Starting minimax search with depth ${commander.depth - 1}`);
-    console.log(`🎲 [FALLBACK] Evaluating ${moves.length} moves...`);
-
-    // Score moves with aggression bonus for captures
-    const scoredMoves = moves.map(move => {
-      let score = 0;
-      if (move.captured) {
-        score += PIECE_VALUES[move.captured] * commander.aggression;
-      }
-      if (move.san.includes('+')) score += 20 * commander.aggression;
-      return { move, bonus: score };
-    });
-
-    // Sort by bonus for better move ordering
-    scoredMoves.sort((a, b) => b.bonus - a.bonus);
-
-    let moveCount = 0;
-    for (const { move, bonus } of scoredMoves) {
-      moveCount++;
-      console.log(`🎲 [FALLBACK] Evaluating move ${moveCount}/${moves.length}: ${move.san}`);
-      
-      game.move(move);
-      const evalStartTime = performance.now();
-      let evalScore = minimax(game, commander.depth - 1, -Infinity, Infinity, !isMaximizing);
-      const evalTime = performance.now() - evalStartTime;
-      game.undo();
-      
-      console.log(`🎲 [FALLBACK] Move ${move.san} eval: ${evalScore}, time: ${evalTime.toFixed(2)}ms`);
-
-      // Apply aggression bonus
-      evalScore += isMaximizing ? bonus : -bonus;
-
-      if (isMaximizing) {
-        if (evalScore > bestEval) {
-          bestEval = evalScore;
-          bestMove = move;
-          console.log(`🎲 [FALLBACK] New best move: ${move.san} with eval ${bestEval}`);
-        }
-      } else {
-        if (evalScore < bestEval) {
-          bestEval = evalScore;
-          bestMove = move;
-          console.log(`🎲 [FALLBACK] New best move: ${move.san} with eval ${bestEval}`);
-        }
-      }
-    }
-
-    const totalTime = performance.now() - startTime;
-    console.log(`🎲 [FALLBACK] Search complete in ${totalTime.toFixed(2)}ms`);
-    console.log(`🎲 [FALLBACK] Best move: ${bestMove?.san || moves[0].san}, eval: ${bestEval}`);
-    console.log(`🎲 [FALLBACK] === getBestMoveFallback END ===\n`);
-
-    return bestMove || moves[0];
-  } catch (error) {
-    console.error('❌ [FALLBACK] ERROR in getBestMoveFallback:', error);
-    console.error('❌ [FALLBACK] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-    return null;
+  // Check for blunder - make a random move
+  if (Math.random() < commander.blunderRate) {
+    const randomIndex = Math.floor(Math.random() * moves.length);
+    return moves[randomIndex];
   }
+
+  const isMaximizing = game.turn() === 'w';
+  let bestMove: Move | null = null;
+  let bestEval = isMaximizing ? -Infinity : Infinity;
+
+  // Score moves with aggression bonus for captures
+  const scoredMoves = moves.map(move => {
+    let score = 0;
+    if (move.captured) {
+      score += PIECE_VALUES[move.captured] * commander.aggression;
+    }
+    if (move.san.includes('+')) score += 20 * commander.aggression;
+    return { move, bonus: score };
+  });
+
+  // Sort by bonus for better move ordering
+  scoredMoves.sort((a, b) => b.bonus - a.bonus);
+
+  for (const { move, bonus } of scoredMoves) {
+    game.move(move);
+    let evalScore = minimax(game, commander.depth - 1, -Infinity, Infinity, !isMaximizing);
+    game.undo();
+
+    // Apply aggression bonus
+    evalScore += isMaximizing ? bonus : -bonus;
+
+    if (isMaximizing) {
+      if (evalScore > bestEval) {
+        bestEval = evalScore;
+        bestMove = move;
+      }
+    } else {
+      if (evalScore < bestEval) {
+        bestEval = evalScore;
+        bestMove = move;
+      }
+    }
+  }
+
+  return bestMove || moves[0];
 }
 
 // Stockfish-powered move selection
@@ -400,48 +365,17 @@ async function initializeStockfish(): Promise<StockfishService | null> {
 }
 
 export function getBestMove(game: Chess, commander: Commander): Move | null {
-  console.log(`\n🤖 [AI] === getBestMove START ===`);
-  console.log(`🤖 [AI] Commander: ${commander.name}, ELO: ${commander.elo}, Depth: ${commander.depth}`);
-  
-  try {
-    console.log('🤖 [AI] Getting legal moves...');
-    const moves = game.moves({ verbose: true });
-    console.log(`🤖 [AI] Found ${moves.length} legal moves`);
-    
-    if (moves.length === 0) {
-      console.log('⚠️ [AI] No legal moves available');
-      return null;
-    }
+  const moves = game.moves({ verbose: true });
+  if (moves.length === 0) return null;
 
-    console.log(`🎯 [AI] ${commander.name} (${commander.elo} ELO) has ${moves.length} legal moves`);
-
-    // Check for blunder - make a random move (applies to both engines)
-    const blunderRoll = Math.random();
-    console.log(`🎲 [AI] Blunder check: rolled ${blunderRoll.toFixed(3)} vs ${commander.blunderRate}`);
-    if (blunderRoll < commander.blunderRate) {
-      console.log(`💀 [AI] ${commander.name} blundered! (rate: ${(commander.blunderRate * 100).toFixed(0)}%)`);
-      const randomIndex = Math.floor(Math.random() * moves.length);
-      console.log(`💀 [AI] Random move selected: ${moves[randomIndex].san}`);
-      return moves[randomIndex];
-    }
-
-    // Use custom engine by default (more reliable)
-    console.log(`🎲 [AI] ${commander.name} using custom engine (depth ${commander.depth})`);
-    console.log('🎲 [AI] Calling getBestMoveFallback...');
-    const fallbackMove = getBestMoveFallback(game, commander);
-    console.log('🎲 [AI] getBestMoveFallback returned:', fallbackMove ? fallbackMove.san : 'null');
-    
-    if (fallbackMove) {
-      console.log(`✅ [AI] ${commander.name} plays: ${fallbackMove.san}`);
-    }
-    
-    console.log(`🤖 [AI] === getBestMove END ===\n`);
-    return fallbackMove;
-  } catch (error) {
-    console.error('❌ [AI] ERROR in getBestMove:', error);
-    console.error('❌ [AI] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-    return null;
+  // Check for blunder - make a random move
+  if (Math.random() < commander.blunderRate) {
+    const randomIndex = Math.floor(Math.random() * moves.length);
+    return moves[randomIndex];
   }
+
+  // Use custom engine
+  return getBestMoveFallback(game, commander);
 }
 
 // Simple material-based evaluation for the eval bar
@@ -479,8 +413,5 @@ export function getEvalForPosition(fen: string): number {
 
 export function getStockfishEval(fen: string): number {
   // Use simple material eval for the eval bar
-  // This is SEPARATE from the move-making engine
-  const eval_ = getEvalForPosition(fen);
-  console.log(`📊 Eval (material only): ${eval_}`);
-  return eval_;
+  return getEvalForPosition(fen);
 }
