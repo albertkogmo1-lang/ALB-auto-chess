@@ -103,9 +103,9 @@ export function buildFenFromPlacement(
   console.log('Total pieces placed on board:', totalPieces);
   console.log('Board state:', board);
   
-  // Build FEN
+  // Build FEN - FEN starts with rank 8 (top of board) and goes to rank 1 (bottom)
   const rows: string[] = [];
-  for (let rank = 7; rank >= 0; rank--) {
+  for (let rank = 0; rank < 8; rank++) {
     let row = '';
     let empty = 0;
     for (let file = 0; file < 8; file++) {
