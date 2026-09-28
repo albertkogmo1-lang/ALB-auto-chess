@@ -13,6 +13,8 @@ interface BoardProps {
 const PIECE_UNICODE: Record<string, string> = {
   'wK': '♔', 'wQ': '♕', 'wR': '♖', 'wB': '♗', 'wN': '♘', 'wP': '♙',
   'bK': '♚', 'bQ': '♛', 'bR': '♜', 'bB': '♝', 'bN': '♞', 'bP': '♟',
+  'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+  'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟',
 };
 
 const Board: React.FC<BoardProps> = ({ board, onSquareClick, highlightZone, occupiedSquares, placementMode, lastMove }) => {

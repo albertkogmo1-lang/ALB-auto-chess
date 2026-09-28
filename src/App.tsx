@@ -190,7 +190,7 @@ const App: React.FC = () => {
         break;
 
       case 'commander-draft':
-        // Auto-select commanders
+        // Auto-select commanders if not already selected
         if (!selectedCommanderWhite) {
           const available = whiteCommanders.filter(c => !c.used);
           if (available.length > 0) {
@@ -205,7 +205,7 @@ const App: React.FC = () => {
             setSelectedCommanderBlack(random);
           }
         }
-        setTimeout(() => startAutoPlay(), 1500);
+        // Don't call startAutoPlay here - let the useEffect handle it
         break;
     }
   }, [phase, whitePawns, blackPawns, whitePieces, blackPieces, whiteCommanders, blackCommanders, selectedCommanderWhite, selectedCommanderBlack, gameMode]);
@@ -441,12 +441,12 @@ const App: React.FC = () => {
           const pick = available[Math.floor(Math.random() * available.length)];
           setSelectedCommanderBlack(pick);
         }
-        setTimeout(() => startAutoPlay(), 1500);
+        // The useEffect will handle starting auto-play when both commanders are set
       }, 1000);
     }
   };
 
-  const startAutoPlay = () => {
+  const startAutoPlay = useCallback(() => {
     setPhase('auto-play');
     
     // Build the FEN from placement
@@ -546,7 +546,17 @@ const App: React.FC = () => {
         setEvalHistory([...localEvalHistory]);
       }
     }, MOVE_INTERVAL);
-  };
+  }, [whitePawns, whitePieces, blackPawns, blackPieces, selectedCommanderWhite, selectedCommanderBlack, whiteCommanders, blackCommanders]);
+
+  // Auto-play effect - starts when both commanders are selected
+  useEffect(() => {
+    if (phase === 'commander-draft' && selectedCommanderWhite && selectedCommanderBlack) {
+      const timeout = setTimeout(() => {
+        startAutoPlay();
+      }, 1500);
+      return () => clearTimeout(timeout);
+    }
+  }, [phase, selectedCommanderWhite, selectedCommanderBlack, startAutoPlay]);
 
   const endRound = (chessGame: Chess, history: number[], moves: number) => {
     let winner: Color | 'draw' = 'draw';
